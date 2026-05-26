@@ -10,9 +10,11 @@ from bot.ai import AIBot
 from services.waha import Waha
 from services.database import Database
 from services.monitor import scan_overdue_demands
+from dashboard import dashboard as dashboard_blueprint
 
 
 app = Flask(__name__)
+app.register_blueprint(dashboard_blueprint)
 
 
 SCAN_INTERVAL = 600  # varredura de demandas atrasadas a cada 10 minutos

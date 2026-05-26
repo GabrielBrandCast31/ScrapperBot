@@ -144,3 +144,60 @@ class Database:
             conn.commit()
         finally:
             conn.close()
+
+    # ----- consultas usadas pelo painel -----
+
+    def get_demands(self, status=None):
+        conn = self.__connect()
+        try:
+            if status in ('open', 'answered'):
+                rows = conn.execute(
+                    'SELECT * FROM demands WHERE status = ? ORDER BY timestamp DESC',
+                    (status,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    'SELECT * FROM demands ORDER BY timestamp DESC'
+                ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_groups(self):
+        conn = self.__connect()
+        try:
+            rows = conn.execute('''
+                SELECT chat_id, chat_name,
+                       COUNT(*) AS total,
+                       MAX(timestamp) AS last_ts
+                FROM messages
+                GROUP BY chat_id
+                ORDER BY last_ts DESC
+            ''').fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_messages(self, chat_id, limit=200):
+        conn = self.__connect()
+        try:
+            rows = conn.execute('''
+                SELECT * FROM messages
+                WHERE chat_id = ?
+                ORDER BY timestamp DESC
+                LIMIT ?
+            ''', (chat_id, limit)).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def resolve_demand(self, demand_id):
+        conn = self.__connect()
+        try:
+            conn.execute(
+                "UPDATE demands SET status = 'answered', answered_at = ? WHERE id = ?",
+                (int(time.time()), demand_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
