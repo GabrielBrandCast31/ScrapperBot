@@ -1,0 +1,30 @@
+services:
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: wpp_bot_waha
+    platform: linux/amd64
+    restart: always
+
+    ports:
+      - '3000:3000'
+    environment:
+      - WHATSAPP_API_KEY=minha-chave-secreta
+      - WAHA_DASHBOARD_USERNAME=admin
+      - WAHA_DASHBOARD_PASSWORD=admin
+      - WAHA_LOCAL_STORE_BASE_DIR=/app/data
+      - WHATSAPP_FILES_FOLDER=/app/data/files
+    volumes:
+      - ./waha_data:/app/data
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: wpp_bot_api 
+    ports:
+      - '5001:5000'
+    volumes:
+      - .:/app
+      - ./chroma_data:/app/chroma_data
+    
+  

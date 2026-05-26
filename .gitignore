@@ -1,0 +1,7 @@
+chroma.sqlite3
+
+.env
+
+.venv
+
+rag/data/*
