@@ -20,7 +20,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
-    container_name: wpp_bot_api 
+    container_name: wpp_bot_api
+    restart: always
     ports:
       - '5001:5000'
     volumes:

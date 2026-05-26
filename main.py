@@ -1,13 +1,43 @@
+import os
+import threading
+import time
+
 from flask import Flask, request, jsonify
 
-# === ETAPA 4: captura/observa mensagens de GRUPOS e grava no banco ===
-# Auto-reply DESLIGADO. A IA (classificacao de demandas) entra na Etapa 5.
-# from bot.ai import AIBot
+# === ETAPA 6: captura/classifica demandas + alerta demandas atrasadas ===
+# Auto-reply DESLIGADO (observe-only). A IA so CLASSIFICA, nao responde clientes.
+from bot.ai import AIBot
 from services.waha import Waha
 from services.database import Database
+from services.monitor import scan_overdue_demands
 
 
 app = Flask(__name__)
+
+
+SCAN_INTERVAL = 600  # varredura de demandas atrasadas a cada 10 minutos
+
+
+def _scan_loop():
+    while True:
+        time.sleep(SCAN_INTERVAL)
+        try:
+            scan_overdue_demands()
+        except Exception as exc:
+            print(f'[SCAN erro] {exc}', flush=True)
+
+
+# Inicia o agendador uma unica vez. Sob `flask run --debug` o reloader cria 2
+# processos; WERKZEUG_RUN_MAIN=='true' so no processo que de fato atende.
+if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+    threading.Thread(target=_scan_loop, daemon=True).start()
+    print('[SCAN] agendador iniciado (a cada 10 min)', flush=True)
+
+
+@app.route('/scan', methods=['GET', 'POST'])
+def scan_endpoint():
+    alertados = scan_overdue_demands()
+    return jsonify({'status': 'ok', 'alertados': alertados}), 200
 
 
 @app.route('/chatbot/webhook/', methods=['POST'])
@@ -46,7 +76,7 @@ def webhook():
     chat_name = waha.get_chat_name(chat_id)
 
     database = Database()
-    database.save_message(
+    is_new = database.save_message(
         message_id=message_id,
         chat_id=chat_id,
         chat_name=chat_name,
@@ -60,6 +90,34 @@ def webhook():
 
     origem = 'equipe' if from_me else 'cliente'
     print(f'[GRAVADO] {chat_name} | {sender_name} ({origem}): {body[:60]}', flush=True)
+
+    # So processa demanda em mensagem nova (evita reprocessar retries do webhook)
+    if is_new:
+        if from_me:
+            # Resposta da equipe: fecha demandas abertas do grupo
+            fechadas = database.close_open_demands(
+                chat_id=chat_id,
+                answered_at=timestamp,
+            )
+            if fechadas:
+                print(f'[RESPONDIDO] {chat_name}: {fechadas} demanda(s) fechada(s)', flush=True)
+        else:
+            # Cliente: classifica se a mensagem e uma demanda
+            ai_bot = AIBot()
+            result = ai_bot.classify_demand(body)
+            if result['is_demand']:
+                database.save_demand(
+                    message_id=message_id,
+                    chat_id=chat_id,
+                    chat_name=chat_name,
+                    sender_name=sender_name,
+                    summary=result['summary'],
+                    body=body,
+                    timestamp=timestamp,
+                )
+                print(f'[DEMANDA] {chat_name} | {sender_name}: {result["summary"]}', flush=True)
+            else:
+                print(f'[NAO-DEMANDA] {chat_name}: {body[:40]}', flush=True)
 
     return jsonify({'status': 'success'}), 200
 
