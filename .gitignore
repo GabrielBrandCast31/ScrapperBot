@@ -5,3 +5,7 @@ chroma.sqlite3
 .venv
 
 rag/data/*
+
+data/
+*.db
+waha_data/

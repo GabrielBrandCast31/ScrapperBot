@@ -1,2 +1,3 @@
-2026/05/26-18:16:43.044 ef Creating DB /app/data/webjs/default/session-default/Default/Sync Data/LevelDB since it was missing.
-2026/05/26-18:16:43.811 ef Reusing MANIFEST /app/data/webjs/default/session-default/Default/Sync Data/LevelDB/MANIFEST-000001
+2026/05/26-22:26:12.914 1dc Reusing MANIFEST /app/data/webjs/default/session-default/Default/Sync Data/LevelDB/MANIFEST-000001
+2026/05/26-22:26:13.245 1dc Recovering log #3
+2026/05/26-22:26:13.252 1dc Reusing old log /app/data/webjs/default/session-default/Default/Sync Data/LevelDB/000003.log 

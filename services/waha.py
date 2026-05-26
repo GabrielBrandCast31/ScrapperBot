@@ -3,8 +3,29 @@ import requests
 
 class Waha:
 
+    # cache de nomes de grupo/chat (id -> nome), compartilhado entre instancias
+    _chat_names = {}
+
     def __init__(self):
         self.__api_url = 'http://waha:3000'
+
+    def get_chat_name(self, chat_id):
+        # popula o cache uma unica vez buscando a lista de chats do WAHA
+        if not Waha._chat_names:
+            try:
+                url = f'{self.__api_url}/api/default/chats?limit=500'
+                headers = {'X-Api-Key': 'minha-chave-secreta'}
+                response = requests.get(url=url, headers=headers, timeout=15)
+                for chat in response.json():
+                    cid = chat.get('id')
+                    if isinstance(cid, dict):
+                        cid = cid.get('_serialized')
+                    if cid:
+                        Waha._chat_names[cid] = chat.get('name')
+            except Exception as exc:
+                print(f'[WAHA get_chat_name] erro: {exc}', flush=True)
+
+        return Waha._chat_names.get(chat_id) or chat_id
 
     def send_message(self, chat_id, message):
         url = f'{self.__api_url}/api/sendText'

@@ -1,2 +1,3 @@
-2026/05/26-18:16:53.843 ee Creating DB /app/data/webjs/default/session-default/Default/GCM Store since it was missing.
-2026/05/26-18:16:53.857 ee Reusing MANIFEST /app/data/webjs/default/session-default/Default/GCM Store/MANIFEST-000001
+2026/05/26-22:26:24.339 1dc Reusing MANIFEST /app/data/webjs/default/session-default/Default/GCM Store/MANIFEST-000001
+2026/05/26-22:26:24.390 1dc Recovering log #3
+2026/05/26-22:26:24.393 1dc Reusing old log /app/data/webjs/default/session-default/Default/GCM Store/000003.log 

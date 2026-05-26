@@ -1,5 +1,6 @@
-2026/05/26-18:16:44.185 116 Creating DB /app/data/webjs/default/session-default/Default/Local Storage/leveldb since it was missing.
-2026/05/26-18:16:44.391 116 Reusing MANIFEST /app/data/webjs/default/session-default/Default/Local Storage/leveldb/MANIFEST-000001
-2026/05/26-20:33:46.933 118 Level-0 table #5: started
-2026/05/26-20:33:47.081 118 Level-0 table #5: 16593 bytes OK
-2026/05/26-20:33:47.112 118 Delete type=0 #3
+2026/05/26-22:26:13.488 203 Reusing MANIFEST /app/data/webjs/default/session-default/Default/Local Storage/leveldb/MANIFEST-000001
+2026/05/26-22:26:13.550 203 Recovering log #4
+2026/05/26-22:26:13.556 203 Reusing old log /app/data/webjs/default/session-default/Default/Local Storage/leveldb/000004.log 
+2026/05/26-22:28:26.425 205 Level-0 table #8: started
+2026/05/26-22:28:26.466 205 Level-0 table #8: 13299 bytes OK
+2026/05/26-22:28:26.481 205 Delete type=0 #4
