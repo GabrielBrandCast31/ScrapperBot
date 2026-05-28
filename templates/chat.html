@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% block title %}Chat IA — BrandCast{% endblock %}
+
+{% block head %}
+<style>
+  .chat-wrap { max-width: 900px; }
+  #log {
+    background: #fff; border: 1px solid #dee2e6; border-radius: .5rem;
+    padding: 1rem; height: calc(100vh - 320px); overflow-y: auto;
+  }
+  .msg { margin-bottom: .75rem; display: flex; }
+  .msg .bubble {
+    padding: .55rem .85rem; border-radius: .9rem; max-width: 80%;
+    white-space: pre-wrap; word-wrap: break-word;
+  }
+  .msg.user { justify-content: flex-end; }
+  .msg.user .bubble { background: #0d6efd; color: #fff; border-bottom-right-radius: .25rem; }
+  .msg.ai .bubble   { background: #f1f3f5; color: #212529; border-bottom-left-radius: .25rem; }
+  .msg.ai.thinking .bubble { color: #6c757d; font-style: italic; }
+  .sugestao {
+    background: #fff; border: 1px solid #dee2e6; border-radius: 999px;
+    padding: .25rem .7rem; font-size: .85rem; color: #495057; cursor: pointer;
+  }
+  .sugestao:hover { background: #e9ecef; }
+  .focus-banner {
+    background: linear-gradient(90deg, #e7f1ff, #fff);
+    border: 1px solid #b6d4fe; border-radius: .5rem;
+    padding: .65rem .9rem; margin-bottom: 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="chat-wrap">
+  <div class="mb-2">
+    <h3 class="mb-0">Chat IA</h3>
+    <small class="text-muted">
+      {% if chat_id %}
+        conversa específica em contexto — pergunte qualquer coisa sobre ela
+      {% else %}
+        pergunte sobre seus clientes em geral
+      {% endif %}
+    </small>
+  </div>
+
+  {% if chat_id %}
+  <div class="focus-banner d-flex justify-content-between align-items-center">
+    <div>
+      🎯 <strong>Analisando:</strong> {{ chat_name_focado }}
+      <div class="text-muted small">A IA já recebeu o transcript dessa conversa. Pergunte direto.</div>
+    </div>
+    <a href="{{ url_for('dashboard.chat') }}" class="btn btn-sm btn-outline-secondary">Sair desta conversa</a>
+  </div>
+  {% endif %}
+
+  <div id="log">
+    <div class="msg ai"><div class="bubble">
+      {% if chat_id %}
+        Tô com a conversa de <strong>{{ chat_name_focado }}</strong> aqui. Algumas ideias:<br>
+        • <em>"Resume o que esse cliente vem pedindo"</em><br>
+        • <em>"Qual o tom geral nas últimas semanas?"</em><br>
+        • <em>"Tem alguma demanda em aberto?"</em><br>
+        • <em>"O que ficou prometido e ainda não entreguei?"</em>
+      {% else %}
+        Pergunte qualquer coisa sobre as conversas. Posso buscar mensagens, listar clientes, etc.
+      {% endif %}
+    </div></div>
+  </div>
+
+  {% if chat_id %}
+  <div class="d-flex flex-wrap gap-2 mt-3 mb-2">
+    <span class="sugestao" onclick="enviarSugestao(this)">Resume essa conversa</span>
+    <span class="sugestao" onclick="enviarSugestao(this)">Qual o tom do cliente nas últimas semanas?</span>
+    <span class="sugestao" onclick="enviarSugestao(this)">O que ficou prometido e não foi entregue?</span>
+    <span class="sugestao" onclick="enviarSugestao(this)">Pontos de atenção que eu deveria saber</span>
+  </div>
+  {% else %}
+  <div class="d-flex flex-wrap gap-2 mt-3 mb-2">
+    <span class="sugestao" onclick="enviarSugestao(this)">Liste os clientes monitorados</span>
+    <span class="sugestao" onclick="enviarSugestao(this)">Panorama geral do banco</span>
+    <span class="sugestao" onclick="enviarSugestao(this)">Buscar mensagens com "atrasado"</span>
+  </div>
+  {% endif %}
+
+  <form id="formChat" class="d-flex gap-2 mt-2">
+    <input id="pergunta" class="form-control" placeholder="Pergunte..." autocomplete="off" required>
+    <button class="btn btn-primary" type="submit" id="enviar">Enviar</button>
+  </form>
+</div>
+
+<script>
+  var CHAT_ID = {{ chat_id|tojson }};
+  var historia = [];
+  var log = document.getElementById('log');
+  var form = document.getElementById('formChat');
+  var input = document.getElementById('pergunta');
+  var botaoEnviar = document.getElementById('enviar');
+
+  function addMsg(role, texto, opts) {
+    var d = document.createElement('div');
+    d.className = 'msg ' + (role === 'user' ? 'user' : 'ai') + (opts && opts.thinking ? ' thinking' : '');
+    var b = document.createElement('div');
+    b.className = 'bubble';
+    b.textContent = texto;
+    d.appendChild(b);
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+    return d;
+  }
+
+  async function perguntar(texto) {
+    addMsg('user', texto);
+    historia.push({role:'user', content: texto});
+    var thinking = addMsg('ai', 'Pensando…', {thinking:true});
+    input.disabled = true; botaoEnviar.disabled = true;
+
+    try {
+      var r = await fetch('{{ url_for("dashboard.chat_perguntar") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({historia: historia, chat_id: CHAT_ID || ''}),
+      });
+      var data = await r.json();
+      thinking.remove();
+      var resposta = data.resposta || ('Erro: ' + (data.erro || 'falha desconhecida'));
+      addMsg('ai', resposta);
+      historia.push({role:'assistant', content: resposta});
+    } catch (e) {
+      thinking.remove();
+      addMsg('ai', 'Erro na requisição: ' + e.message);
+    } finally {
+      input.disabled = false; botaoEnviar.disabled = false; input.focus();
+    }
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var t = input.value.trim();
+    if (!t) return;
+    input.value = '';
+    perguntar(t);
+  });
+
+  function enviarSugestao(el) {
+    perguntar(el.textContent);
+  }
+</script>
+
+{% endblock %}

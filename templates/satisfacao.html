@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% block title %}Satisfação — BrandCast{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="60">{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h3 class="mb-0">Satisfação dos clientes</h3>
+    <small class="text-muted">ranking + mensagens negativas recentes</small>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <form method="post" action="{{ url_for('dashboard.importar') }}"
+          onsubmit="return confirm('Importar o historico dos ultimos 30 dias de todos os grupos? Roda em segundo plano.');">
+      <button class="btn btn-sm btn-outline-primary" type="submit">Importar histórico (30d)</button>
+    </form>
+    <form method="post" action="{{ url_for('dashboard.analisar_sentimento') }}"
+          onsubmit="return confirm('Analisar com IA o sentimento de todas as mensagens de cliente ainda nao analisadas?');">
+      <button class="btn btn-sm btn-outline-success" type="submit">Analisar sentimento (IA)</button>
+    </form>
+    <a class="btn btn-sm btn-outline-dark" href="{{ url_for('dashboard.importar_arquivo_form') }}">Importar .txt</a>
+  </div>
+</div>
+
+{% if request.args.get('importacao') %}
+<div class="alert alert-info">Importação iniciada em segundo plano.</div>
+{% endif %}
+{% if request.args.get('analise') %}
+<div class="alert alert-warning">Análise de sentimento iniciada em background. {{ pendentes_analise }} mensagem(ns) pendente(s) — vai aparecer aqui à medida que processa.</div>
+{% endif %}
+
+{% if pendentes_analise %}
+<div class="alert alert-secondary">
+  <strong>{{ pendentes_analise }}</strong> mensagem(ns) de cliente ainda sem análise de sentimento.
+  Clique em <em>"Analisar sentimento (IA)"</em> pra processar.
+</div>
+{% endif %}
+
+<h5 class="mb-3">Ranking de clientes</h5>
+<div class="card mb-4">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Cliente</th><th>Status</th><th>Score</th>
+          <th class="text-end">Amostra</th>
+          <th class="text-end">Negativas</th>
+          <th class="text-end">Positivas</th>
+          <th>Última msg</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in clientes %}
+        <tr>
+          <td class="fw-semibold">{{ c.chat_name }}</td>
+          <td><span class="badge text-bg-{{ c.cor }}">{{ c.label }}</span></td>
+          <td style="min-width:180px">
+            <div class="d-flex align-items-center gap-2">
+              <div class="progress flex-grow-1" style="height:8px;">
+                <div class="progress-bar bg-{{ c.cor }}" role="progressbar" style="width: {{ c.score_pct }}%"></div>
+              </div>
+              <span class="small fw-semibold">{{ c.score_pct }}/100</span>
+            </div>
+          </td>
+          <td class="text-end">{{ c.amostra }}</td>
+          <td class="text-end">{{ c.neg + c.fru }}</td>
+          <td class="text-end">{{ c.pos }}</td>
+          <td class="text-muted small">{{ c.ultima_rel }}</td>
+          <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dashboard.grupo', chat_id=c.chat_id) }}">Ver</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-muted py-4">Nenhum cliente analisado ainda. Clique em <em>Analisar sentimento (IA)</em>.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<h5 class="mb-3">⚠️ Mensagens negativas/frustradas recentes</h5>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-light"><tr>
+        <th>Quando</th><th>Cliente</th><th>Quem</th><th>Telefone</th><th>Sentimento</th><th>Mensagem</th>
+      </tr></thead>
+      <tbody>
+        {% for m in msgs_negativas %}
+        <tr>
+          <td class="text-nowrap small">{{ m.rel }}</td>
+          <td class="fw-semibold">{{ m.chat_name }}</td>
+          <td>{{ m.sender_name }}</td>
+          <td class="text-muted small">{{ m.sender_phone or '—' }}</td>
+          <td>
+            {% if m.sentiment == 'frustrated' %}
+              <span class="badge text-bg-danger">frustrado</span>
+            {% else %}
+              <span class="badge text-bg-warning">negativo</span>
+            {% endif %}
+          </td>
+          <td>{{ m.body }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">Nenhuma mensagem negativa registrada (ainda).</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

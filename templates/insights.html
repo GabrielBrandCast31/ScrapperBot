@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}Insights — BrandCast{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="60">{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h3 class="mb-0">Insights</h3>
+    <small class="text-muted">panorama das conversas armazenadas</small>
+  </div>
+  <span class="text-muted small">Atualiza a cada 60s</span>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col">
+    <div class="card text-bg-primary"><div class="card-body py-3">
+      <div class="fs-2 fw-bold">{{ msgs.total }}</div><div>Mensagens armazenadas</div>
+    </div></div>
+  </div>
+  <div class="col">
+    <div class="card text-bg-success"><div class="card-body py-3">
+      <div class="fs-2 fw-bold">{{ msgs.ultimas_24h }}</div><div>Mensagens nas últimas 24h</div>
+    </div></div>
+  </div>
+  <div class="col">
+    <div class="card text-bg-dark"><div class="card-body py-3">
+      <div class="fs-2 fw-bold">{{ clientes_total }}</div><div>Clientes monitorados</div>
+    </div></div>
+  </div>
+</div>
+
+<h5 class="mb-3">Conversas mais ativas (últimas a receber mensagem)</h5>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light"><tr>
+        <th>Cliente</th><th class="text-end">Mensagens</th><th>Última</th><th></th>
+      </tr></thead>
+      <tbody>
+        {% for g in top_volume %}
+        <tr>
+          <td class="fw-semibold">{{ g.chat_name or g.chat_id }}</td>
+          <td class="text-end">{{ g.total }}</td>
+          <td class="text-muted small">{{ g.ultima }}</td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dashboard.grupo', chat_id=g.chat_id) }}">Ver</a>
+            <a class="btn btn-sm btn-primary" href="{{ url_for('dashboard.chat', chat_id=g.chat_id) }}">🤖 Analisar com IA</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-center text-muted py-4">Sem conversas ainda.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

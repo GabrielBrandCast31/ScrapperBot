@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Importar arquivo de chat — BrandCast{% endblock %}
+
+{% block content %}
+
+<div class="mb-3">
+  <a href="{{ url_for('dashboard.demandas') }}" class="text-decoration-none">&larr; Voltar para Demandas</a>
+</div>
+
+<h3 class="mb-1">Importar arquivo de chat (.txt)</h3>
+<p class="text-muted small">
+  Exporte uma conversa do WhatsApp ("Mais opções → Exportar conversa → Sem mídia") e selecione o arquivo aqui.
+  As mensagens entram no banco com <code>INSERT OR IGNORE</code> — pode rodar de novo sem duplicar.
+</p>
+
+{% if request.args.get('erro') %}
+<div class="alert alert-danger">Erro: {{ request.args.get('erro') }}</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('dashboard.importar_arquivo_enviar') }}" enctype="multipart/form-data" class="card p-4" style="max-width: 720px;">
+
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Arquivo .txt exportado do WhatsApp</label>
+    <input type="file" name="arquivo" accept=".txt" class="form-control" required>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Em qual grupo/cliente associar?</label>
+    <select name="chat_id" class="form-select" required>
+      <option value="">— selecione —</option>
+      {% for g in grupos %}
+        <option value="{{ g.chat_id }}">{{ g.chat_name }}</option>
+      {% endfor %}
+    </select>
+    <div class="form-text">Lista mostra apenas grupos já presentes no banco. Se for um cliente novo, primeiro chegue uma mensagem nova pelo webhook ou rode "Importar histórico (30d)".</div>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Nome do grupo <span class="text-muted fw-normal">(opcional)</span></label>
+    <input type="text" name="chat_name" class="form-control" placeholder="Sobrescreve o nome se for diferente">
+  </div>
+
+  <div class="mb-4">
+    <label class="form-label fw-semibold">Nomes da equipe <span class="text-muted fw-normal">(opcional, separar por vírgula)</span></label>
+    <input type="text" name="nomes_equipe" class="form-control" placeholder="ex: Felipe Campos, Luan, Nicolas, Markin, Pedro, Mamãe Linda, Ana Firsen, Vinicius">
+    <div class="form-text">Padrão: Felipe Campos, Luan, Nicolas, Markin, Pedro Lucas, Mamãe Linda, Ana Firsen, BrandCast, Vinicius. Senders que combinarem com algum desses ficam marcados como <em>Equipe</em>; o resto vira <em>Cliente</em>.</div>
+  </div>
+
+  <div class="d-flex justify-content-end gap-2">
+    <a href="{{ url_for('dashboard.demandas') }}" class="btn btn-outline-secondary">Cancelar</a>
+    <button type="submit" class="btn btn-primary">Importar</button>
+  </div>
+</form>
+
+{% endblock %}

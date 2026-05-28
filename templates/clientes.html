@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}Clientes — BrandCast{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h3 class="mb-0">Clientes <span class="text-muted fs-5">({{ clientes|length }})</span></h3>
+    <small class="text-muted">grupos monitorados — clique em <em>Analisar com IA</em> pra abrir o chat com aquela conversa no contexto</small>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <a class="btn btn-sm btn-outline-dark" href="{{ url_for('dashboard.importar_arquivo_form') }}">Importar .txt</a>
+    <input id="buscaCliente" class="form-control form-control-sm" type="search" placeholder="Buscar...">
+  </div>
+</div>
+
+{% if request.args.get('importacao') %}
+<div class="alert alert-info">Importação iniciada em segundo plano.</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" id="tabelaClientes">
+      <thead class="table-light"><tr>
+        <th>Cliente</th>
+        <th class="text-end">Mensagens</th>
+        <th>Última msg</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+        {% for c in clientes %}
+        <tr>
+          <td class="fw-semibold">{{ c.chat_name }}</td>
+          <td class="text-end">{{ c.total }}</td>
+          <td class="text-muted small">{{ c.ultima }}</td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dashboard.grupo', chat_id=c.chat_id) }}">Ver mensagens</a>
+            <a class="btn btn-sm btn-primary" href="{{ url_for('dashboard.chat', chat_id=c.chat_id) }}">🤖 Analisar com IA</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-center text-muted py-4">Nenhum cliente monitorado ainda.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  document.getElementById('buscaCliente').addEventListener('input', function (e) {
+    var termo = e.target.value.toLowerCase();
+    document.querySelectorAll('#tabelaClientes tbody tr').forEach(function (tr) {
+      tr.style.display = tr.innerText.toLowerCase().includes(termo) ? '' : 'none';
+    });
+  });
+</script>
+
+{% endblock %}

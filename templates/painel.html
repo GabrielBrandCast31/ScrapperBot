@@ -12,23 +12,46 @@
 
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h3 class="mb-0">Painel de Demandas</h3>
-    <span class="text-muted small">Atualiza sozinho a cada 60s</span>
+    <div class="d-flex align-items-center gap-2">
+      <form method="post" action="{{ url_for('dashboard.importar') }}"
+            onsubmit="return confirm('Importar o historico dos ultimos 30 dias de todos os grupos? Roda em segundo plano.');">
+        <button class="btn btn-sm btn-outline-primary" type="submit">Importar histórico (30d)</button>
+      </form>
+      <form method="post" action="{{ url_for('dashboard.classificar') }}"
+            onsubmit="return confirm('Classificar com IA todas as mensagens de clientes em grupos ainda nao classificadas? Gera chamadas OpenAI. Alertas das demandas historicas ja entram silenciados.');">
+        <button class="btn btn-sm btn-outline-success" type="submit">Classificar com IA</button>
+      </form>
+      <span class="text-muted small ms-2">Atualiza a cada 60s</span>
+    </div>
   </div>
+
+  {% if request.args.get('importacao') %}
+  <div class="alert alert-info">
+    Importação do histórico <strong>iniciada em segundo plano</strong>. As mensagens vão aparecer aos poucos —
+    a página atualiza sozinha. (Acompanhe com <code>docker compose logs -f api</code>.)
+  </div>
+  {% endif %}
+  {% if request.args.get('classificacao') %}
+  <div class="alert alert-warning">
+    Classificação com IA <strong>iniciada em segundo plano</strong>. As demandas vão aparecer aos poucos.
+    Alertas das demandas históricas estão <strong>silenciados</strong> para não disparar no WhatsApp.
+  </div>
+  {% endif %}
 
   <div class="row g-3 mb-4">
     <div class="col">
       <div class="card text-bg-primary"><div class="card-body py-3">
-        <div class="fs-2 fw-bold">{{ stats.abertas }}</div><div>Abertas</div>
+        <div class="fs-2 fw-bold">{{ stats.pendentes }}</div><div>Pendentes</div>
       </div></div>
     </div>
     <div class="col">
       <div class="card text-bg-danger"><div class="card-body py-3">
-        <div class="fs-2 fw-bold">{{ stats.atrasadas }}</div><div>Atrasadas (+4h)</div>
+        <div class="fs-2 fw-bold">{{ stats.atrasadas }}</div><div>Atrasadas (sem resposta +4h)</div>
       </div></div>
     </div>
     <div class="col">
       <div class="card text-bg-success"><div class="card-body py-3">
-        <div class="fs-2 fw-bold">{{ stats.respondidas }}</div><div>Respondidas</div>
+        <div class="fs-2 fw-bold">{{ stats.resolvidas }}</div><div>Resolvidas</div>
       </div></div>
     </div>
     <div class="col">
@@ -39,7 +62,7 @@
   </div>
 
   <ul class="nav nav-pills mb-3">
-    {% for key, label in [('abertas','Abertas'), ('atrasadas','Atrasadas'), ('respondidas','Respondidas'), ('todas','Todas')] %}
+    {% for key, label in [('pendentes','Pendentes'), ('atrasadas','Atrasadas'), ('resolvidas','Resolvidas'), ('todas','Todas')] %}
     <li class="nav-item">
       <a class="nav-link {{ 'active' if status == key else '' }}" href="{{ url_for('dashboard.painel', status=key) }}">{{ label }}</a>
     </li>
@@ -51,7 +74,8 @@
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
-            <th>Grupo</th><th>Cliente</th><th>Demanda</th><th>Quando</th><th>Status</th><th></th>
+            <th>Grupo</th><th>Cliente</th><th>Demanda</th><th>Quando</th>
+            <th>Equipe respondeu</th><th>Status</th><th></th>
           </tr>
         </thead>
         <tbody>
@@ -62,10 +86,19 @@
             <td>{{ d.summary }}</td>
             <td><span title="{{ d.quando }}">{{ d.rel }}</span></td>
             <td>
+              {% if d.team_replied %}
+                <span class="text-success">✓ {{ d.team_reply_rel }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
               {% if d.status == 'answered' %}
-                <span class="badge text-bg-success">Respondida</span>
+                <span class="badge text-bg-success">Resolvida</span>
               {% elif d.atrasada %}
                 <span class="badge text-bg-danger">Atrasada</span>
+              {% elif d.team_replied %}
+                <span class="badge text-bg-warning">Aguardando confirmação</span>
               {% else %}
                 <span class="badge text-bg-primary">Aberta</span>
               {% endif %}
@@ -79,33 +112,52 @@
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="6" class="text-center text-muted py-4">Nenhuma demanda nesta visão.</td></tr>
+          <tr><td colspan="7" class="text-center text-muted py-4">Nenhuma demanda nesta visão.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
 
-  <h5 class="mb-3">Grupos monitorados</h5>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Conversas monitoradas <span class="text-muted fs-6">({{ grupos|length }})</span></h5>
+    <input id="buscaConversa" class="form-control form-control-sm w-auto" type="search" placeholder="Buscar conversa...">
+  </div>
   <div class="card">
     <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle mb-0">
-        <thead class="table-light"><tr><th>Grupo</th><th>Mensagens</th><th>Última</th><th></th></tr></thead>
+      <table class="table table-sm table-hover align-middle mb-0" id="tabelaConversas">
+        <thead class="table-light"><tr><th>Conversa</th><th>Tipo</th><th>Mensagens</th><th>Última</th><th></th></tr></thead>
         <tbody>
           {% for g in grupos %}
           <tr>
             <td>{{ g.chat_name }}</td>
+            <td>
+              {% if '@g.us' in g.chat_id %}
+                <span class="badge text-bg-warning">Grupo</span>
+              {% else %}
+                <span class="badge text-bg-info">Pessoa</span>
+              {% endif %}
+            </td>
             <td>{{ g.total }}</td>
             <td>{{ g.ultima }}</td>
             <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dashboard.grupo', chat_id=g.chat_id) }}">Ver mensagens</a></td>
           </tr>
           {% else %}
-          <tr><td colspan="4" class="text-center text-muted py-4">Nenhum grupo capturado ainda.</td></tr>
+          <tr><td colspan="5" class="text-center text-muted py-4">Nenhuma conversa capturada ainda.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
+
+  <script>
+    document.getElementById('buscaConversa').addEventListener('input', function (e) {
+      var termo = e.target.value.toLowerCase();
+      document.querySelectorAll('#tabelaConversas tbody tr').forEach(function (tr) {
+        tr.style.display = tr.innerText.toLowerCase().includes(termo) ? '' : 'none';
+      });
+    });
+  </script>
 
 </div>
 </body>

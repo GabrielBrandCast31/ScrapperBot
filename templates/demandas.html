@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block title %}Demandas — BrandCast{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="60">{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h3 class="mb-0">Demandas</h3>
+    <small class="text-muted">tudo o que clientes pediram (resolva manualmente quando concluído)</small>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <form method="post" action="{{ url_for('dashboard.importar') }}"
+          onsubmit="return confirm('Importar o historico dos ultimos 30 dias de todos os grupos? Roda em segundo plano.');">
+      <button class="btn btn-sm btn-outline-primary" type="submit">Importar histórico (30d)</button>
+    </form>
+    <form method="post" action="{{ url_for('dashboard.classificar') }}"
+          onsubmit="return confirm('Classificar com IA todas as mensagens de clientes em grupos ainda nao classificadas?');">
+      <button class="btn btn-sm btn-outline-success" type="submit">Classificar com IA</button>
+    </form>
+    <a class="btn btn-sm btn-outline-dark" href="{{ url_for('dashboard.importar_arquivo_form') }}">Importar arquivo .txt</a>
+  </div>
+</div>
+
+{% if request.args.get('importacao') %}
+<div class="alert alert-info">Importação iniciada em segundo plano.</div>
+{% endif %}
+{% if request.args.get('classificacao') %}
+<div class="alert alert-warning">Classificação com IA iniciada em segundo plano. Alertas das históricas estão silenciados.</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col">
+    <div class="card text-bg-primary"><div class="card-body py-2">
+      <div class="fs-3 fw-bold">{{ stats.pendentes }}</div><div>Pendentes</div>
+    </div></div>
+  </div>
+  <div class="col">
+    <div class="card text-bg-danger"><div class="card-body py-2">
+      <div class="fs-3 fw-bold">{{ stats.atrasadas }}</div><div>Atrasadas (+4h)</div>
+    </div></div>
+  </div>
+  <div class="col">
+    <div class="card text-bg-success"><div class="card-body py-2">
+      <div class="fs-3 fw-bold">{{ stats.resolvidas }}</div><div>Resolvidas</div>
+    </div></div>
+  </div>
+  <div class="col">
+    <div class="card text-bg-secondary"><div class="card-body py-2">
+      <div class="fs-3 fw-bold">{{ stats.total }}</div><div>Total</div>
+    </div></div>
+  </div>
+</div>
+
+<ul class="nav nav-pills mb-3">
+  {% for key, label in [('pendentes','Pendentes'), ('atrasadas','Atrasadas'), ('resolvidas','Resolvidas'), ('todas','Todas')] %}
+  <li class="nav-item">
+    <a class="nav-link {{ 'active' if status == key else '' }}" href="{{ url_for('dashboard.demandas', status=key) }}">{{ label }}</a>
+  </li>
+  {% endfor %}
+</ul>
+
+<div class="card mb-4">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Cliente</th><th>Quem</th><th>Demanda</th><th>Quando</th>
+          <th>Equipe respondeu</th><th>Status</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in demandas %}
+        <tr class="{{ 'table-danger' if d.atrasada else '' }}">
+          <td class="fw-semibold">{{ d.chat_name }}</td>
+          <td>{{ d.sender_name }}</td>
+          <td>{{ d.summary }}</td>
+          <td><span title="{{ d.quando }}">{{ d.rel }}</span></td>
+          <td>
+            {% if d.team_replied %}
+              <span class="text-success">✓ {{ d.team_reply_rel }}</span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if d.status == 'answered' %}
+              <span class="badge text-bg-success">Resolvida</span>
+            {% elif d.atrasada %}
+              <span class="badge text-bg-danger">Atrasada</span>
+            {% elif d.team_replied %}
+              <span class="badge text-bg-warning">Aguardando confirmação</span>
+            {% else %}
+              <span class="badge text-bg-primary">Aberta</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            {% if d.status == 'open' %}
+            <form method="post" action="{{ url_for('dashboard.resolver', demand_id=d.id) }}">
+              <button class="btn btn-sm btn-outline-success" type="submit">Marcar resolvida</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Nenhuma demanda nesta visão.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
