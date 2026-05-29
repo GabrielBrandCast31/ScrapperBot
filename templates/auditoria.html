@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}Auditoria IA — BrandCast{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-0">Auditoria IA <span class="text-muted fs-5">({{ sumarios|length }})</span></h3>
+    <small class="text-muted">resumos automáticos das conversas ativas — gerados de 1 em 1 hora pela IA</small>
+  </div>
+  <form method="post" action="{{ url_for('dashboard.rodar_auditoria') }}">
+    <button class="btn btn-sm btn-primary" type="submit">⟳ Rodar agora</button>
+  </form>
+</div>
+
+{% if request.args.get('disparada') %}
+<div class="alert alert-info py-2">Auditoria disparada em segundo plano. Atualize a página em ~30s para ver os resumos.</div>
+{% endif %}
+
+{% if sumarios %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light"><tr>
+        <th>Cliente</th>
+        <th class="text-end">Msgs</th>
+        <th>Janela</th>
+        <th>Resumo</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+        {% for s in sumarios %}
+        <tr>
+          <td class="fw-semibold text-nowrap">
+            {{ s.chat_name or s.chat_id }}
+            <div class="text-muted small">{{ s.quando }}</div>
+          </td>
+          <td class="text-end">{{ s.qtd_msgs }}</td>
+          <td class="text-muted small text-nowrap">{{ s.janela }}</td>
+          <td style="white-space: pre-wrap; max-width: 600px;">{{ s.resumo }}</td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dashboard.grupo', chat_id=s.chat_id) }}">Ver msgs</a>
+            <a class="btn btn-sm btn-primary" href="{{ url_for('dashboard.chat', chat_id=s.chat_id) }}">🤖 IA</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card"><div class="card-body text-center text-muted py-5">
+  <p class="mb-2">Nenhum resumo ainda.</p>
+  <p class="small">A auditoria roda automaticamente a cada 1h. Clique em "Rodar agora" para disparar um ciclo manual.</p>
+</div></div>
+{% endif %}
+
+{% endblock %}
