@@ -14,7 +14,12 @@ load_dotenv()
 from services.waha import Waha
 from services.database import Database
 from services.messages import MEDIA_LABELS, extract_phone
+from services.importer import import_history
 from dashboard import dashboard as dashboard_blueprint
+
+
+# Estado do ultimo backfill periodico (consultado pelo painel se preciso).
+ULTIMO_BACKFILL = {'inicio': None, 'fim': None, 'novas': 0, 'erro': None}
 
 
 app = Flask(__name__)
@@ -48,11 +53,34 @@ def _session_healer_loop():
             print(f'[HEAL erro] {exc}', flush=True)
 
 
+def _hourly_import_loop():
+    """A cada 1h, faz backfill dos ultimos 2 dias dos grupos via WAHA.
+
+    O webhook eh o canal primario (real-time); este loop eh rede de seguranca
+    pra eventuais lacunas (queda do WAHA, restart, sync atrasado). save_message
+    usa INSERT OR IGNORE, entao nao duplica nada.
+    """
+    # Espera o WAHA terminar o sync inicial antes do primeiro backfill.
+    time.sleep(180)
+    while True:
+        ULTIMO_BACKFILL['inicio'] = int(time.time())
+        ULTIMO_BACKFILL['erro'] = None
+        try:
+            print('[IMPORT-LOOP] iniciando backfill periodico (days=2)...', flush=True)
+            ULTIMO_BACKFILL['novas'] = import_history(days=2) or 0
+        except Exception as exc:
+            ULTIMO_BACKFILL['erro'] = str(exc)
+            print(f'[IMPORT-LOOP erro] {exc}', flush=True)
+        ULTIMO_BACKFILL['fim'] = int(time.time())
+        time.sleep(3600)
+
+
 # Threads de boot. Guarda com WERKZEUG_RUN_MAIN pra nao duplicar com o reloader do Flask.
 if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
     threading.Thread(target=_ensure_session_on_boot, daemon=True).start()
     threading.Thread(target=_session_healer_loop, daemon=True).start()
-    print('[BOOT] threads de sessao iniciadas (healer a cada 1h)', flush=True)
+    threading.Thread(target=_hourly_import_loop, daemon=True).start()
+    print('[BOOT] threads iniciadas (healer + backfill a cada 1h)', flush=True)
 
 
 @app.route('/chatbot/webhook/', methods=['POST'])

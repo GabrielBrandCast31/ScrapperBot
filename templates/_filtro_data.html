@@ -1,0 +1,17 @@
+<form class="d-flex flex-wrap align-items-center gap-2" method="get" action="{{ request.path }}">
+  {# preserva outros params (ex.: chat_id) #}
+  {% for k, v in request.args.items() if k not in ('inicio', 'fim') %}
+    <input type="hidden" name="{{ k }}" value="{{ v }}">
+  {% endfor %}
+  <span class="text-muted small">Período:</span>
+  <input type="date" name="inicio" class="form-control form-control-sm" style="width:auto"
+         value="{{ periodo.inicio or '' }}">
+  <span class="text-muted">→</span>
+  <input type="date" name="fim" class="form-control form-control-sm" style="width:auto"
+         value="{{ periodo.fim or '' }}">
+  <button class="btn btn-sm btn-primary" type="submit">Filtrar</button>
+  {% if periodo.ativo %}
+    <a href="{{ request.path }}{% if request.args.get('chat_id') %}?chat_id={{ request.args.get('chat_id') }}{% endif %}"
+       class="btn btn-sm btn-outline-secondary">Limpar</a>
+  {% endif %}
+</form>

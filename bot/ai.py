@@ -42,7 +42,7 @@ def _gemini_responder(system_prompt, history):
         'systemInstruction': {'parts': [{'text': system_prompt}]},
         'generationConfig': {'temperature': 0.2},
     }
-    url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+    url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
 
     # Tenta com API-key na query string; se nao, com Bearer (caso seja OAuth token).
     for tentativa in (
@@ -205,7 +205,7 @@ class DataChatBot:
 
         for _ in range(6):
             r = self.__client.chat.completions.create(
-                model='gpt-4o-mini',
+                model='gpt-4o',
                 messages=messages,
                 tools=CHAT_TOOLS,
                 temperature=0.2,

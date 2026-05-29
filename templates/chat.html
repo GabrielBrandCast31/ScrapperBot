@@ -45,12 +45,23 @@
   </div>
 
   {% if chat_id %}
-  <div class="focus-banner d-flex justify-content-between align-items-center">
-    <div>
-      🎯 <strong>Analisando:</strong> {{ chat_name_focado }}
-      <div class="text-muted small">A IA já recebeu o transcript dessa conversa. Pergunte direto.</div>
+  <div class="focus-banner">
+    <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+      <div>
+        🎯 <strong>Analisando:</strong> {{ chat_name_focado }}
+        <div class="text-muted small">
+          {% if periodo.ativo %}
+            A IA está recebendo só as mensagens entre <strong>{{ periodo.inicio or '...' }}</strong> e <strong>{{ periodo.fim or '...' }}</strong>.
+          {% else %}
+            A IA já recebeu o transcript completo dessa conversa. Pergunte direto.
+          {% endif %}
+        </div>
+      </div>
+      <a href="{{ url_for('dashboard.chat') }}" class="btn btn-sm btn-outline-secondary">Sair desta conversa</a>
     </div>
-    <a href="{{ url_for('dashboard.chat') }}" class="btn btn-sm btn-outline-secondary">Sair desta conversa</a>
+    <div class="mt-2">
+      {% include '_filtro_data.html' %}
+    </div>
   </div>
   {% endif %}
 
@@ -91,6 +102,8 @@
 
 <script>
   var CHAT_ID = {{ chat_id|tojson }};
+  var PERIODO_INICIO = {{ (periodo.inicio or '')|tojson }};
+  var PERIODO_FIM = {{ (periodo.fim or '')|tojson }};
   var historia = [];
   var log = document.getElementById('log');
   var form = document.getElementById('formChat');
@@ -119,7 +132,12 @@
       var r = await fetch('{{ url_for("dashboard.chat_perguntar") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({historia: historia, chat_id: CHAT_ID || ''}),
+        body: JSON.stringify({
+          historia: historia,
+          chat_id: CHAT_ID || '',
+          inicio: PERIODO_INICIO || '',
+          fim: PERIODO_FIM || '',
+        }),
       });
       var data = await r.json();
       thinking.remove();

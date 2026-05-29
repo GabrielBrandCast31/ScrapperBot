@@ -3,7 +3,7 @@
 
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-3">
   <div>
     <h3 class="mb-0">Clientes <span class="text-muted fs-5">({{ clientes|length }})</span></h3>
     <small class="text-muted">grupos monitorados — clique em <em>Analisar com IA</em> pra abrir o chat com aquela conversa no contexto</small>
@@ -12,6 +12,15 @@
     <a class="btn btn-sm btn-outline-dark" href="{{ url_for('dashboard.importar_arquivo_form') }}">Importar .txt</a>
     <input id="buscaCliente" class="form-control form-control-sm" type="search" placeholder="Buscar...">
   </div>
+</div>
+
+<div class="mb-3">
+  {% include '_filtro_data.html' %}
+  {% if periodo.ativo %}
+    <div class="text-muted small mt-1">
+      Mostrando contagens e o contexto da IA dentro de {{ periodo.inicio or '...' }} → {{ periodo.fim or '...' }}
+    </div>
+  {% endif %}
 </div>
 
 {% if request.args.get('importacao') %}
@@ -34,8 +43,8 @@
           <td class="text-end">{{ c.total }}</td>
           <td class="text-muted small">{{ c.ultima }}</td>
           <td class="text-end">
-            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dashboard.grupo', chat_id=c.chat_id) }}">Ver mensagens</a>
-            <a class="btn btn-sm btn-primary" href="{{ url_for('dashboard.chat', chat_id=c.chat_id) }}">🤖 Analisar com IA</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dashboard.grupo', chat_id=c.chat_id, inicio=periodo.inicio or none, fim=periodo.fim or none) }}">Ver mensagens</a>
+            <a class="btn btn-sm btn-primary" href="{{ url_for('dashboard.chat', chat_id=c.chat_id, inicio=periodo.inicio or none, fim=periodo.fim or none) }}">🤖 Analisar com IA</a>
           </td>
         </tr>
         {% else %}

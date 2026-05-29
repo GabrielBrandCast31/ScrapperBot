@@ -265,30 +265,45 @@ class Database:
         finally:
             conn.close()
 
-    def get_groups(self):
+    def get_groups(self, inicio_ts=None, fim_ts=None):
         conn = self.__connect()
         try:
-            rows = conn.execute('''
+            sql = '''
                 SELECT chat_id, chat_name,
                        COUNT(*) AS total,
                        MAX(timestamp) AS last_ts
                 FROM messages
-                GROUP BY chat_id
-                ORDER BY last_ts DESC
-            ''').fetchall()
+            '''
+            extras = []
+            params = []
+            if inicio_ts is not None:
+                extras.append('timestamp >= ?')
+                params.append(int(inicio_ts))
+            if fim_ts is not None:
+                extras.append('timestamp < ?')
+                params.append(int(fim_ts))
+            if extras:
+                sql += ' WHERE ' + ' AND '.join(extras)
+            sql += ' GROUP BY chat_id ORDER BY last_ts DESC'
+            rows = conn.execute(sql, tuple(params)).fetchall()
             return [dict(r) for r in rows]
         finally:
             conn.close()
 
-    def get_messages(self, chat_id, limit=200):
+    def get_messages(self, chat_id, limit=200, inicio_ts=None, fim_ts=None):
         conn = self.__connect()
         try:
-            rows = conn.execute('''
-                SELECT * FROM messages
-                WHERE chat_id = ?
-                ORDER BY timestamp DESC
-                LIMIT ?
-            ''', (chat_id, limit)).fetchall()
+            sql = 'SELECT * FROM messages WHERE chat_id = ?'
+            params = [chat_id]
+            if inicio_ts is not None:
+                sql += ' AND timestamp >= ?'
+                params.append(int(inicio_ts))
+            if fim_ts is not None:
+                sql += ' AND timestamp < ?'
+                params.append(int(fim_ts))
+            sql += ' ORDER BY timestamp DESC LIMIT ?'
+            params.append(int(limit))
+            rows = conn.execute(sql, tuple(params)).fetchall()
             return [dict(r) for r in rows]
         finally:
             conn.close()
@@ -354,12 +369,23 @@ class Database:
         finally:
             conn.close()
 
-    def contagem_mensagens(self):
-        """Total de mensagens + total nas ultimas 24h."""
+    def contagem_mensagens(self, inicio_ts=None, fim_ts=None):
+        """Total de mensagens (no periodo, se filtrado) + total nas ultimas 24h."""
         conn = self.__connect()
         try:
             agora = int(time.time())
-            total = conn.execute('SELECT COUNT(*) FROM messages').fetchone()[0]
+            sql = 'SELECT COUNT(*) FROM messages'
+            extras = []
+            params = []
+            if inicio_ts is not None:
+                extras.append('timestamp >= ?')
+                params.append(int(inicio_ts))
+            if fim_ts is not None:
+                extras.append('timestamp < ?')
+                params.append(int(fim_ts))
+            if extras:
+                sql += ' WHERE ' + ' AND '.join(extras)
+            total = conn.execute(sql, tuple(params)).fetchone()[0]
             ultimo_dia = conn.execute(
                 'SELECT COUNT(*) FROM messages WHERE timestamp >= ?',
                 (agora - 86400,),

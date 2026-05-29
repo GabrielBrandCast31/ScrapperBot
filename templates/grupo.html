@@ -8,7 +8,17 @@
 </div>
 
 <h4 class="mb-1">{{ nome }}</h4>
-<p class="text-muted small">Últimas {{ mensagens|length }} mensagens (mais recentes primeiro)</p>
+<p class="text-muted small">
+  {% if periodo.ativo %}
+    {{ mensagens|length }} mensagens entre {{ periodo.inicio or '...' }} e {{ periodo.fim or '...' }} (mais recentes primeiro)
+  {% else %}
+    Últimas {{ mensagens|length }} mensagens (mais recentes primeiro)
+  {% endif %}
+</p>
+
+<div class="mb-3">
+  {% include '_filtro_data.html' %}
+</div>
 
 <div class="card">
   <div class="table-responsive">

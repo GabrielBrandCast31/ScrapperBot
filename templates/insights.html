@@ -4,7 +4,7 @@
 
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-3">
   <div>
     <h3 class="mb-0">Insights</h3>
     <small class="text-muted">panorama das conversas armazenadas</small>
@@ -12,10 +12,20 @@
   <span class="text-muted small">Atualiza a cada 60s</span>
 </div>
 
+<div class="mb-4">
+  {% include '_filtro_data.html' %}
+  {% if periodo.ativo %}
+    <div class="text-muted small mt-1">
+      Exibindo apenas {{ periodo.inicio or '...' }} → {{ periodo.fim or '...' }}
+    </div>
+  {% endif %}
+</div>
+
 <div class="row g-3 mb-4">
   <div class="col">
     <div class="card text-bg-primary"><div class="card-body py-3">
-      <div class="fs-2 fw-bold">{{ msgs.total }}</div><div>Mensagens armazenadas</div>
+      <div class="fs-2 fw-bold">{{ msgs.total }}</div>
+      <div>{% if periodo.ativo %}Mensagens no período{% else %}Mensagens armazenadas{% endif %}</div>
     </div></div>
   </div>
   <div class="col">
@@ -44,8 +54,8 @@
           <td class="text-end">{{ g.total }}</td>
           <td class="text-muted small">{{ g.ultima }}</td>
           <td class="text-end">
-            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dashboard.grupo', chat_id=g.chat_id) }}">Ver</a>
-            <a class="btn btn-sm btn-primary" href="{{ url_for('dashboard.chat', chat_id=g.chat_id) }}">🤖 Analisar com IA</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dashboard.grupo', chat_id=g.chat_id, inicio=periodo.inicio or none, fim=periodo.fim or none) }}">Ver</a>
+            <a class="btn btn-sm btn-primary" href="{{ url_for('dashboard.chat', chat_id=g.chat_id, inicio=periodo.inicio or none, fim=periodo.fim or none) }}">🤖 Analisar com IA</a>
           </td>
         </tr>
         {% else %}

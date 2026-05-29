@@ -3,12 +3,21 @@
 
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-3">
   <div>
     <h3 class="mb-0">Conversas <span class="text-muted fs-5">({{ grupos|length }})</span></h3>
     <small class="text-muted">grupos e conversas individuais capturadas</small>
   </div>
   <input id="buscaConversa" class="form-control form-control-sm w-auto" type="search" placeholder="Buscar conversa...">
+</div>
+
+<div class="mb-3">
+  {% include '_filtro_data.html' %}
+  {% if periodo.ativo %}
+    <div class="text-muted small mt-1">
+      Mostrando contagens dentro de {{ periodo.inicio or '...' }} → {{ periodo.fim or '...' }}
+    </div>
+  {% endif %}
 </div>
 
 <div class="card">
@@ -31,8 +40,8 @@
           <td class="text-end">{{ g.total }}</td>
           <td class="text-muted small">{{ g.ultima }}</td>
           <td class="text-end">
-            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dashboard.grupo', chat_id=g.chat_id) }}">Ver</a>
-            <a class="btn btn-sm btn-primary" href="{{ url_for('dashboard.chat', chat_id=g.chat_id) }}">🤖 Analisar com IA</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dashboard.grupo', chat_id=g.chat_id, inicio=periodo.inicio or none, fim=periodo.fim or none) }}">Ver</a>
+            <a class="btn btn-sm btn-primary" href="{{ url_for('dashboard.chat', chat_id=g.chat_id, inicio=periodo.inicio or none, fim=periodo.fim or none) }}">🤖 Analisar com IA</a>
           </td>
         </tr>
         {% else %}
