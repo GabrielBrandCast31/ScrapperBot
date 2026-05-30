@@ -1,3 +1,6 @@
 2026/05/30-13:55:12.460 69 Reusing MANIFEST /app/data/webjs/default/session-default/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
 2026/05/30-13:55:12.464 69 Recovering log #148
 2026/05/30-13:55:12.476 69 Reusing old log /app/data/webjs/default/session-default/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000148.log 
+2026/05/30-14:46:13.986 6b Level-0 table #159: started
+2026/05/30-14:46:14.119 6b Level-0 table #159: 1355239 bytes OK
+2026/05/30-14:46:14.134 6b Delete type=0 #148
