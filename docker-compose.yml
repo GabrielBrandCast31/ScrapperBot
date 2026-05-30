@@ -6,8 +6,10 @@ services:
     restart: always
 
     ports:
-      # 127.0.0.1: so este Mac acessa (rede local nao alcanca)
-      - '127.0.0.1:3000:3000'
+      # WAHA dashboard so para o proprio servidor (use SSH tunnel pra
+      # acessar de fora). Porta de host 3030 pra nao colidir com outros
+      # serviços rodando no mesmo host (frontend em 8080, backend em 8000, etc.).
+      - '127.0.0.1:3030:3000'
     environment:
       - WHATSAPP_API_KEY=minha-chave-secreta
       - WAHA_DASHBOARD_USERNAME=admin
@@ -29,7 +31,8 @@ services:
     ports:
       # Aberto na LAN: qualquer dispositivo na mesma rede acessa o painel
       # SEM autenticacao. Use com consciencia (conversas de clientes ficam expostas).
-      - '5001:5000'
+      # Porta de host 5050 pra nao colidir com outros serviços (5432 postgres, 5000 outros Flask).
+      - '5050:5000'
     volumes:
       - .:/app
       - ./chroma_data:/app/chroma_data

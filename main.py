@@ -15,11 +15,13 @@ from services.waha import Waha
 from services.database import Database
 from services.messages import MEDIA_LABELS, extract_phone
 from services.importer import import_history
+from services.auditoria import gerar_auditoria
 from dashboard import dashboard as dashboard_blueprint
 
 
 # Estado do ultimo backfill periodico (consultado pelo painel se preciso).
 ULTIMO_BACKFILL = {'inicio': None, 'fim': None, 'novas': 0, 'erro': None}
+ULTIMA_AUDITORIA = {'inicio': None, 'fim': None, 'resumos': 0, 'erro': None}
 
 
 app = Flask(__name__)
@@ -75,12 +77,30 @@ def _hourly_import_loop():
         time.sleep(3600)
 
 
+def _hourly_audit_loop():
+    """A cada 1h, gera resumo IA das conversas com atividade na ultima hora."""
+    # Warmup escalonado pra nao colidir com healer e import.
+    time.sleep(420)
+    while True:
+        ULTIMA_AUDITORIA['inicio'] = int(time.time())
+        ULTIMA_AUDITORIA['erro'] = None
+        try:
+            print('[AUDIT-LOOP] iniciando auditoria horaria...', flush=True)
+            ULTIMA_AUDITORIA['resumos'] = gerar_auditoria(periodo_horas=1) or 0
+        except Exception as exc:
+            ULTIMA_AUDITORIA['erro'] = str(exc)
+            print(f'[AUDIT-LOOP erro] {exc}', flush=True)
+        ULTIMA_AUDITORIA['fim'] = int(time.time())
+        time.sleep(3600)
+
+
 # Threads de boot. Guarda com WERKZEUG_RUN_MAIN pra nao duplicar com o reloader do Flask.
 if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
     threading.Thread(target=_ensure_session_on_boot, daemon=True).start()
     threading.Thread(target=_session_healer_loop, daemon=True).start()
     threading.Thread(target=_hourly_import_loop, daemon=True).start()
-    print('[BOOT] threads iniciadas (healer + backfill a cada 1h)', flush=True)
+    threading.Thread(target=_hourly_audit_loop, daemon=True).start()
+    print('[BOOT] threads iniciadas (healer + backfill + auditoria IA a cada 1h)', flush=True)
 
 
 @app.route('/chatbot/webhook/', methods=['POST'])

@@ -85,6 +85,22 @@ class Database:
                 conn.execute('ALTER TABLE demands ADD COLUMN team_replied_at INTEGER')
             except sqlite3.OperationalError:
                 pass  # coluna ja existe
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS hourly_summaries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    chat_id TEXT NOT NULL,
+                    chat_name TEXT,
+                    inicio_ts INTEGER,
+                    fim_ts INTEGER,
+                    qtd_msgs INTEGER,
+                    resumo TEXT,
+                    created_at TEXT
+                )
+            ''')
+            conn.execute(
+                'CREATE INDEX IF NOT EXISTS idx_summaries_chat_fim '
+                'ON hourly_summaries (chat_id, fim_ts DESC)'
+            )
             conn.commit()
         finally:
             conn.close()
@@ -490,6 +506,79 @@ class Database:
                 ORDER BY timestamp DESC
                 LIMIT ?
             ''', (limite,)).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    # ----- consultas de AUDITORIA HORARIA -----
+
+    def chats_com_mensagens_recentes(self, since_ts):
+        """Chats (so grupos/imports) que receberam mensagem >= since_ts."""
+        conn = self.__connect()
+        try:
+            rows = conn.execute('''
+                SELECT chat_id, MAX(chat_name) AS chat_name, COUNT(*) AS qtd,
+                       MAX(timestamp) AS last_ts
+                FROM messages
+                WHERE timestamp >= ?
+                  AND (chat_id LIKE '%@g.us' OR chat_id LIKE 'import:%')
+                GROUP BY chat_id
+                HAVING qtd >= 1
+                ORDER BY last_ts DESC
+            ''', (since_ts,)).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_messages_no_periodo(self, chat_id, inicio_ts, fim_ts=None):
+        """Mensagens de um chat em ordem cronologica ASC dentro do periodo."""
+        conn = self.__connect()
+        try:
+            sql = '''
+                SELECT chat_name, sender_name, body, timestamp, from_me,
+                       datetime(timestamp,'unixepoch','localtime') AS quando
+                FROM messages
+                WHERE chat_id = ? AND timestamp >= ?
+            '''
+            params = [chat_id, int(inicio_ts)]
+            if fim_ts is not None:
+                sql += ' AND timestamp < ?'
+                params.append(int(fim_ts))
+            sql += ' ORDER BY timestamp ASC'
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def save_hourly_summary(self, chat_id, chat_name, inicio_ts, fim_ts,
+                            qtd_msgs, resumo):
+        conn = self.__connect()
+        try:
+            conn.execute('''
+                INSERT INTO hourly_summaries
+                (chat_id, chat_name, inicio_ts, fim_ts, qtd_msgs, resumo, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                chat_id, chat_name, int(inicio_ts), int(fim_ts),
+                int(qtd_msgs), resumo, datetime.now().isoformat(),
+            ))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def latest_summary_per_chat(self, limit=200):
+        """Ultimo resumo de cada chat, mais recentes primeiro."""
+        conn = self.__connect()
+        try:
+            rows = conn.execute('''
+                SELECT s.* FROM hourly_summaries s
+                INNER JOIN (
+                    SELECT chat_id, MAX(fim_ts) AS max_fim
+                    FROM hourly_summaries GROUP BY chat_id
+                ) m ON s.chat_id = m.chat_id AND s.fim_ts = m.max_fim
+                ORDER BY s.fim_ts DESC
+                LIMIT ?
+            ''', (int(limit),)).fetchall()
             return [dict(r) for r in rows]
         finally:
             conn.close()

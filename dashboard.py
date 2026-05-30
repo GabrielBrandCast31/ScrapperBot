@@ -255,6 +255,38 @@ def grupo():
     )
 
 
+# --------- Auditoria IA horaria ----------
+
+@dashboard.route('/painel/auditoria')
+def auditoria():
+    now = int(time.time())
+    sumarios = Database().latest_summary_per_chat(limit=200)
+    for s in sumarios:
+        s['quando'] = _fmt_rel(s.get('fim_ts'), now)
+        s['janela'] = (
+            f'{_fmt_abs(s.get("inicio_ts"))} – {_fmt_abs(s.get("fim_ts"))}'
+            if s.get('inicio_ts') and s.get('fim_ts') else '—'
+        )
+    return render_template(
+        'auditoria.html', active='auditoria',
+        sumarios=sumarios,
+    )
+
+
+@dashboard.route('/painel/auditoria/rodar', methods=['POST'])
+def rodar_auditoria():
+    from services.auditoria import gerar_auditoria as _gerar
+
+    def _run():
+        try:
+            _gerar(periodo_horas=1)
+        except Exception as exc:
+            print(f'[auditoria manual erro] {exc}', flush=True)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return redirect(url_for('dashboard.auditoria', disparada='1'))
+
+
 # --------- Acoes ----------
 
 @dashboard.route('/painel/importar', methods=['POST'])
