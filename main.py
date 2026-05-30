@@ -1,9 +1,15 @@
 import os
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
+
+
+# Brasilia (UTC-3, sem DST desde 2019). Usado para decidir o intervalo da
+# auditoria IA: de 1h durante o dia (10h-20h), de 3h a noite (20h-10h).
+BRT = timezone(timedelta(hours=-3))
 
 # Carrega .env (OPENAI_API_KEY, ...) antes de tudo
 load_dotenv()
@@ -77,21 +83,44 @@ def _hourly_import_loop():
         time.sleep(3600)
 
 
-def _hourly_audit_loop():
-    """A cada 1h, gera resumo IA das conversas com atividade na ultima hora."""
+def _intervalo_auditoria_horas():
+    """Intervalo (em horas) ate a proxima auditoria. 1h durante o dia
+    (10h-20h BRT), 3h a noite (20h-10h BRT) para economizar tokens.
+    """
+    h = datetime.now(BRT).hour
+    return 3 if (h >= 20 or h < 10) else 1
+
+
+def _audit_loop():
+    """Gera resumo IA das conversas. Intervalo dinamico (1h dia / 3h noite).
+
+    Janela analisada acompanha o intervalo: se rodou ha 3h, o resumo cobre
+    as ultimas 3h, sem deixar mensagens descobertas no overnight.
+    """
     # Warmup escalonado pra nao colidir com healer e import.
     time.sleep(420)
+    ultimo_fim_ts = None
     while True:
-        ULTIMA_AUDITORIA['inicio'] = int(time.time())
+        agora_ts = int(time.time())
+        if ultimo_fim_ts is None:
+            janela_h = _intervalo_auditoria_horas()
+        else:
+            janela_h = max(1.0, (agora_ts - ultimo_fim_ts) / 3600.0)
+
+        ULTIMA_AUDITORIA['inicio'] = agora_ts
         ULTIMA_AUDITORIA['erro'] = None
         try:
-            print('[AUDIT-LOOP] iniciando auditoria horaria...', flush=True)
-            ULTIMA_AUDITORIA['resumos'] = gerar_auditoria(periodo_horas=1) or 0
+            print(f'[AUDIT-LOOP] iniciando auditoria (janela={janela_h:.1f}h)...', flush=True)
+            ULTIMA_AUDITORIA['resumos'] = gerar_auditoria(periodo_horas=janela_h) or 0
         except Exception as exc:
             ULTIMA_AUDITORIA['erro'] = str(exc)
             print(f'[AUDIT-LOOP erro] {exc}', flush=True)
         ULTIMA_AUDITORIA['fim'] = int(time.time())
-        time.sleep(3600)
+        ultimo_fim_ts = ULTIMA_AUDITORIA['fim']
+
+        proximo_h = _intervalo_auditoria_horas()
+        print(f'[AUDIT-LOOP] proximo ciclo em {proximo_h}h', flush=True)
+        time.sleep(proximo_h * 3600)
 
 
 # Threads de boot. Guarda com WERKZEUG_RUN_MAIN pra nao duplicar com o reloader do Flask.
@@ -99,8 +128,8 @@ if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
     threading.Thread(target=_ensure_session_on_boot, daemon=True).start()
     threading.Thread(target=_session_healer_loop, daemon=True).start()
     threading.Thread(target=_hourly_import_loop, daemon=True).start()
-    threading.Thread(target=_hourly_audit_loop, daemon=True).start()
-    print('[BOOT] threads iniciadas (healer + backfill + auditoria IA a cada 1h)', flush=True)
+    threading.Thread(target=_audit_loop, daemon=True).start()
+    print('[BOOT] threads iniciadas (healer + backfill horario + auditoria IA 1h dia / 3h noite)', flush=True)
 
 
 @app.route('/chatbot/webhook/', methods=['POST'])
