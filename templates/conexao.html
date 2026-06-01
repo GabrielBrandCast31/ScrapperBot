@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+{% block title %}Conexão WhatsApp — BrandCast{% endblock %}
+
+{% block head %}
+<style>
+  .status-card { border-radius: .75rem; padding: 1.5rem; margin-bottom: 1rem; }
+  .status-card .badge { font-size: .9rem; padding: .35rem .75rem; }
+  .qr-wrap {
+    background: #fff; border: 1px solid #dee2e6; border-radius: .5rem;
+    padding: 1rem; text-align: center; max-width: 360px; margin: 0 auto;
+  }
+  .qr-wrap img { max-width: 100%; height: auto; }
+  .spinner-inline {
+    display: inline-block; width: 1rem; height: 1rem;
+    border: 2px solid #ccc; border-top-color: #0d6efd;
+    border-radius: 50%; animation: spin .8s linear infinite; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .info-row { margin-bottom: .4rem; }
+  .info-row strong { display: inline-block; min-width: 140px; color: #495057; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h3 class="mb-0">Conexão WhatsApp</h3>
+    <small class="text-muted">parear, monitorar e desconectar o número que o monitor está usando</small>
+  </div>
+  <span class="text-muted small" id="atualizadoEm">atualizando…</span>
+</div>
+
+<div id="cardStatus" class="status-card text-bg-secondary">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div>
+      <span class="badge text-bg-light" id="badgeStatus">—</span>
+      <strong class="ms-2" id="textoStatus">Verificando…</strong>
+    </div>
+    <div class="d-flex gap-2" id="botoes">
+      <!-- preenchido via JS -->
+    </div>
+  </div>
+  <div class="mt-3" id="infoExtra"></div>
+</div>
+
+<div id="qrSection" style="display: none;">
+  <div class="qr-wrap">
+    <img id="qrImg" src="" alt="QR Code">
+    <div class="mt-2 text-muted small">
+      Abra o WhatsApp → ⋮ → <strong>Aparelhos conectados</strong> → <strong>Conectar um aparelho</strong> → aponte a câmera aqui.<br>
+      O QR atualiza sozinho. Se passar muito tempo, clique em <em>Reiniciar</em>.
+    </div>
+  </div>
+</div>
+
+<div id="ajuda" class="text-muted small mt-3" style="max-width: 600px;">
+  <strong>Como funciona:</strong><br>
+  • <strong>STOPPED</strong> — sessão parada. Clique <em>Iniciar</em>.<br>
+  • <strong>STARTING</strong> — subindo o motor do WAHA. Aguarda alguns segundos.<br>
+  • <strong>SCAN_QR_CODE</strong> — precisa parear. Escaneie o QR acima.<br>
+  • <strong>WORKING</strong> — conectado. Mensagens estão sendo capturadas em tempo real.<br>
+  • <strong>FAILED</strong> — algo deu errado. Tente <em>Reiniciar</em>.<br>
+  <em>Desconectar</em> apaga o pareamento atual (precisará escanear QR de novo). Use só se quiser trocar de número.
+</div>
+
+<script>
+  const CFG = {
+    cor: {
+      WORKING: 'text-bg-success',
+      STARTING: 'text-bg-info',
+      SCAN_QR_CODE: 'text-bg-warning',
+      STOPPED: 'text-bg-secondary',
+      FAILED: 'text-bg-danger',
+    },
+    rotulo: {
+      WORKING: 'Conectado',
+      STARTING: 'Iniciando…',
+      SCAN_QR_CODE: 'Aguardando pareamento',
+      STOPPED: 'Parado',
+      FAILED: 'Falhou',
+    },
+  };
+
+  const elCard = document.getElementById('cardStatus');
+  const elBadge = document.getElementById('badgeStatus');
+  const elTexto = document.getElementById('textoStatus');
+  const elBotoes = document.getElementById('botoes');
+  const elInfo = document.getElementById('infoExtra');
+  const elAtualizado = document.getElementById('atualizadoEm');
+  const elQRSection = document.getElementById('qrSection');
+  const elQRImg = document.getElementById('qrImg');
+
+  function setCor(status) {
+    elCard.className = 'status-card ' + (CFG.cor[status] || 'text-bg-secondary');
+  }
+
+  function botao(label, acao, classe) {
+    return `<button class="btn btn-sm ${classe}" onclick="executar('${acao}', this)">${label}</button>`;
+  }
+
+  function renderBotoes(status) {
+    let h = '';
+    if (status === 'STOPPED' || status === 'FAILED' || !status) {
+      h += botao('▶ Iniciar', 'start', 'btn-light');
+    }
+    if (status === 'WORKING' || status === 'STARTING' || status === 'SCAN_QR_CODE') {
+      h += botao('⟳ Reiniciar', 'restart', 'btn-light');
+      h += botao('⏸ Parar', 'stop', 'btn-outline-light');
+    }
+    if (status === 'WORKING' || status === 'SCAN_QR_CODE') {
+      h += botao('✕ Desconectar', 'logout', 'btn-outline-light ms-2');
+    }
+    elBotoes.innerHTML = h;
+  }
+
+  function renderInfo(data) {
+    let h = '';
+    if (data.me && data.me.id) {
+      h += `<div class="info-row"><strong>Número:</strong> ${data.me.id.replace('@c.us','')}</div>`;
+    }
+    if (data.me && data.me.pushName) {
+      h += `<div class="info-row"><strong>Nome:</strong> ${data.me.pushName}</div>`;
+    }
+    if (data.engine && data.engine.engine) {
+      h += `<div class="info-row"><strong>Motor:</strong> ${data.engine.engine}`;
+      if (data.engine.WWebVersion) h += ` <span class="opacity-75">(WhatsApp Web ${data.engine.WWebVersion})</span>`;
+      h += `</div>`;
+    }
+    elInfo.innerHTML = h;
+  }
+
+  function atualizarQR(status) {
+    if (status === 'SCAN_QR_CODE') {
+      elQRSection.style.display = 'block';
+      // cache-bust pra forçar refresh do QR a cada poll
+      elQRImg.src = '{{ url_for("dashboard.conexao_qr") }}?t=' + Date.now();
+    } else {
+      elQRSection.style.display = 'none';
+    }
+  }
+
+  async function carregar() {
+    try {
+      const r = await fetch('{{ url_for("dashboard.conexao_status") }}');
+      const data = await r.json();
+      const status = data.status || 'STOPPED';
+
+      setCor(status);
+      elBadge.textContent = status;
+      elTexto.textContent = CFG.rotulo[status] || status;
+      renderBotoes(status);
+      renderInfo(data);
+      atualizarQR(status);
+
+      const agora = new Date();
+      elAtualizado.textContent = 'atualizado às ' + agora.toLocaleTimeString();
+    } catch (e) {
+      elTexto.textContent = 'Sem resposta do WAHA';
+      setCor(null);
+      elBotoes.innerHTML = '';
+    }
+  }
+
+  async function executar(acao, btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-inline"></span>';
+    try {
+      await fetch('{{ url_for("dashboard.conexao") }}/' + acao, {method: 'POST'});
+    } catch (e) {}
+    // Aguarda um pouco e refaz o poll pra ver o novo estado
+    setTimeout(carregar, 1500);
+  }
+
+  carregar();
+  setInterval(carregar, 3000);
+</script>
+
+{% endblock %}

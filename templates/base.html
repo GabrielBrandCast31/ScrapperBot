@@ -43,6 +43,7 @@
     </div>
     <nav class="d-flex flex-column">
       {% set a = active|default('') %}
+      <a class="nav-item {{ 'active' if a == 'conexao' else '' }}"  href="{{ url_for('dashboard.conexao') }}"><span class="ico">📱</span> Conexão</a>
       <a class="nav-item {{ 'active' if a == 'insights' else '' }}"  href="{{ url_for('dashboard.painel') }}"><span class="ico">📊</span> Insights</a>
       <a class="nav-item {{ 'active' if a == 'clientes' else '' }}" href="{{ url_for('dashboard.clientes') }}"><span class="ico">👥</span> Clientes</a>
       <a class="nav-item {{ 'active' if a == 'conversas' else '' }}" href="{{ url_for('dashboard.conversas') }}"><span class="ico">💬</span> Conversas</a>
