@@ -357,6 +357,52 @@ def importar_arquivo_form():
     return render_template('importar_arquivo.html', active='clientes', grupos=grupos)
 
 
+@dashboard.route('/painel/conversas/sincronizar', methods=['POST'])
+def sincronizar_conversa():
+    """Recebe um .txt exportado do WhatsApp e sincroniza com a conversa indicada.
+
+    Dedup nativo: `importar_arquivo` gera message_id estavel por hash
+    (chat_id|ts|sender|body), e save_message usa INSERT OR IGNORE. Re-importar
+    o mesmo arquivo nao duplica nada; e um arquivo mais recente do mesmo
+    grupo soh insere as mensagens novas.
+    """
+    chat_id = (request.form.get('chat_id') or '').strip()
+    origem = (request.form.get('origem') or 'conversas').strip()  # 'conversas' | 'clientes'
+    arquivo = request.files.get('arquivo')
+
+    rota_volta = 'dashboard.clientes' if origem == 'clientes' else 'dashboard.conversas'
+
+    if not arquivo or not chat_id:
+        return redirect(url_for(rota_volta, erro_sync='arquivo-ou-chat-faltando'))
+    if not (arquivo.filename or '').lower().endswith('.txt'):
+        return redirect(url_for(rota_volta, erro_sync='precisa-ser-.txt'))
+
+    # Recupera o chat_name atual (pra preservar consistencia)
+    chat_name = chat_id
+    for g in Database().get_groups():
+        if g['chat_id'] == chat_id:
+            chat_name = g['chat_name'] or chat_id
+            break
+
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    nome_seguro = ''.join(c for c in (arquivo.filename or 'chat.txt')
+                          if c.isalnum() or c in '._-') or 'chat.txt'
+    caminho = os.path.join(UPLOAD_DIR, f'sync_{int(time.time())}_{nome_seguro}')
+    arquivo.save(caminho)
+
+    try:
+        resultado = importar_arquivo(caminho, chat_id=chat_id, chat_name=chat_name) or {}
+        novas = resultado.get('salvas', 0)
+        return redirect(url_for(
+            rota_volta,
+            sync_ok=novas,
+            sync_chat=(chat_name or chat_id)[:50],
+        ))
+    except Exception as exc:
+        print(f'[sincronizar_conversa erro] {exc}', flush=True)
+        return redirect(url_for(rota_volta, erro_sync=str(exc)[:120]))
+
+
 @dashboard.route('/painel/importar-arquivo', methods=['POST'])
 def importar_arquivo_enviar():
     arquivo = request.files.get('arquivo')

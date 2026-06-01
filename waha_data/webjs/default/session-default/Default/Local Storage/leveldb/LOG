@@ -1,15 +1,6 @@
-2026/06/01-15:26:41.032 90 Reusing MANIFEST /app/data/webjs/default/session-default/Default/Local Storage/leveldb/MANIFEST-000001
-2026/06/01-15:26:41.079 90 Recovering log #13
-2026/06/01-15:26:41.084 90 Reusing old log /app/data/webjs/default/session-default/Default/Local Storage/leveldb/000013.log 
-2026/06/01-15:27:17.977 93 Level-0 table #17: started
-2026/06/01-15:27:17.991 93 Level-0 table #17: 14454 bytes OK
-2026/06/01-15:27:18.002 93 Delete type=0 #13
-2026/06/01-15:27:18.011 93 Compacting 4@0 + 1@1 files
-2026/06/01-15:27:18.016 93 Generated table #18@0: 45 keys, 4954 bytes
-2026/06/01-15:27:18.016 93 Compacted 4@0 + 1@1 files => 4954 bytes
-2026/06/01-15:27:18.017 93 compacted to: files[ 0 1 1 0 0 0 0 ]
-2026/06/01-15:27:18.019 93 Delete type=2 #14
-2026/06/01-15:27:18.020 93 Delete type=2 #17
-2026/06/01-15:27:18.020 93 Delete type=2 #7
-2026/06/01-15:27:18.020 93 Delete type=2 #12
-2026/06/01-15:27:18.020 93 Delete type=2 #10
+2026/06/01-21:26:00.690 150 Reusing MANIFEST /app/data/webjs/default/session-default/Default/Local Storage/leveldb/MANIFEST-000001
+2026/06/01-21:26:00.853 150 Recovering log #16
+2026/06/01-21:26:00.885 150 Reusing old log /app/data/webjs/default/session-default/Default/Local Storage/leveldb/000016.log 
+2026/06/01-21:56:43.391 152 Level-0 table #21: started
+2026/06/01-21:56:43.451 152 Level-0 table #21: 14391 bytes OK
+2026/06/01-21:56:43.465 152 Delete type=0 #16
