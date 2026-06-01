@@ -3,11 +3,12 @@ import time
 import threading
 from datetime import datetime
 
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify, Response
 
 from services.database import Database
 from services.importer import import_history
 from services.whatsapp_import import importar_arquivo
+from services.waha import Waha
 
 
 # Painel local; sem autenticacao.
@@ -253,6 +254,55 @@ def grupo():
         mensagens=mensagens, nome=nome, chat_id=chat_id,
         periodo=periodo,
     )
+
+
+# --------- Conexao WhatsApp (WAHA) ----------
+
+@dashboard.route('/painel/conexao')
+def conexao():
+    return render_template('conexao.html', active='conexao')
+
+
+@dashboard.route('/painel/conexao/status')
+def conexao_status():
+    info = Waha().get_session_info() or {}
+    return jsonify({
+        'status': info.get('status'),
+        'me': info.get('me'),
+        'engine': info.get('engine'),
+    })
+
+
+@dashboard.route('/painel/conexao/qr')
+def conexao_qr():
+    png = Waha().get_qr_image()
+    if not png:
+        return ('', 404)
+    return Response(png, mimetype='image/png')
+
+
+@dashboard.route('/painel/conexao/start', methods=['POST'])
+def conexao_start():
+    Waha().start_session()
+    return jsonify({'ok': True})
+
+
+@dashboard.route('/painel/conexao/stop', methods=['POST'])
+def conexao_stop():
+    Waha().stop_session()
+    return jsonify({'ok': True})
+
+
+@dashboard.route('/painel/conexao/restart', methods=['POST'])
+def conexao_restart():
+    Waha().restart_session()
+    return jsonify({'ok': True})
+
+
+@dashboard.route('/painel/conexao/logout', methods=['POST'])
+def conexao_logout():
+    Waha().logout_session()
+    return jsonify({'ok': True})
 
 
 # --------- Auditoria IA horaria ----------

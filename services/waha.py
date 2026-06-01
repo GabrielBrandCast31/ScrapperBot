@@ -24,6 +24,71 @@ class Waha:
             pass
         return None
 
+    def get_session_info(self):
+        """Retorna o JSON completo da sessao 'default' (status, me, engine, ...)."""
+        try:
+            url = f'{self.__api_url}/api/sessions/default'
+            response = requests.get(
+                url=url,
+                headers={'X-Api-Key': 'minha-chave-secreta'},
+                timeout=10,
+            )
+            if response.status_code == 200:
+                return response.json()
+        except Exception as exc:
+            print(f'[WAHA get_session_info] erro: {exc}', flush=True)
+        return None
+
+    def get_qr_image(self):
+        """Retorna bytes PNG do QR code. Soh funciona quando status=SCAN_QR_CODE."""
+        try:
+            url = f'{self.__api_url}/api/default/auth/qr?format=image'
+            response = requests.get(
+                url=url,
+                headers={'X-Api-Key': 'minha-chave-secreta'},
+                timeout=15,
+            )
+            if response.status_code == 200:
+                return response.content
+            print(f'[WAHA get_qr_image] HTTP {response.status_code}', flush=True)
+        except Exception as exc:
+            print(f'[WAHA get_qr_image] erro: {exc}', flush=True)
+        return None
+
+    def stop_session(self):
+        try:
+            url = f'{self.__api_url}/api/sessions/default/stop'
+            requests.post(
+                url=url,
+                headers={'X-Api-Key': 'minha-chave-secreta'},
+                timeout=20,
+            )
+        except Exception as exc:
+            print(f'[WAHA stop_session] erro: {exc}', flush=True)
+
+    def restart_session(self):
+        try:
+            url = f'{self.__api_url}/api/sessions/default/restart'
+            requests.post(
+                url=url,
+                headers={'X-Api-Key': 'minha-chave-secreta'},
+                timeout=30,
+            )
+        except Exception as exc:
+            print(f'[WAHA restart_session] erro: {exc}', flush=True)
+
+    def logout_session(self):
+        """Desvincula o WhatsApp (remove a sessao pareada). Vai precisar de QR de novo."""
+        try:
+            url = f'{self.__api_url}/api/sessions/default/logout'
+            requests.post(
+                url=url,
+                headers={'X-Api-Key': 'minha-chave-secreta'},
+                timeout=20,
+            )
+        except Exception as exc:
+            print(f'[WAHA logout_session] erro: {exc}', flush=True)
+
     def start_session(self):
         try:
             url = f'{self.__api_url}/api/sessions/default/start'
