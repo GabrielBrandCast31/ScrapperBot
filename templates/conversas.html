@@ -20,6 +20,15 @@
   {% endif %}
 </div>
 
+{% if request.args.get('sync_ok') %}
+<div class="alert alert-success py-2">
+  ✅ <strong>{{ request.args.get('sync_chat') }}</strong>: {{ request.args.get('sync_ok') }} mensagem(ns) nova(s) adicionada(s) (duplicadas foram ignoradas).
+</div>
+{% endif %}
+{% if request.args.get('erro_sync') %}
+<div class="alert alert-danger py-2">❌ Erro na sincronização: {{ request.args.get('erro_sync') }}</div>
+{% endif %}
+
 <div class="card">
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0" id="tabelaConversas">
@@ -39,8 +48,20 @@
           </td>
           <td class="text-end">{{ g.total }}</td>
           <td class="text-muted small">{{ g.ultima }}</td>
-          <td class="text-end">
+          <td class="text-end text-nowrap">
             <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dashboard.grupo', chat_id=g.chat_id, inicio=periodo.inicio or none, fim=periodo.fim or none) }}">Ver</a>
+            <form method="post" action="{{ url_for('dashboard.sincronizar_conversa') }}" enctype="multipart/form-data" class="d-inline">
+              <input type="hidden" name="chat_id" value="{{ g.chat_id }}">
+              <input type="hidden" name="origem" value="conversas">
+              <input type="file" name="arquivo" accept=".txt" class="d-none"
+                     id="sync-{{ loop.index0 }}"
+                     onchange="this.form.submit()">
+              <button type="button" class="btn btn-sm btn-outline-success"
+                      onclick="document.getElementById('sync-{{ loop.index0 }}').click()"
+                      title="Importar .txt exportado do WhatsApp (só adiciona msgs novas)">
+                📥 Sincronizar
+              </button>
+            </form>
             <a class="btn btn-sm btn-primary" href="{{ url_for('dashboard.chat', chat_id=g.chat_id, inicio=periodo.inicio or none, fim=periodo.fim or none) }}">🤖 Analisar com IA</a>
           </td>
         </tr>
