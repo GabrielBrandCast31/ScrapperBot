@@ -23,6 +23,7 @@ from services.messages import MEDIA_LABELS, extract_phone
 from services.importer import import_history
 from services.auditoria import gerar_auditoria
 from dashboard import dashboard as dashboard_blueprint
+from api import api as api_blueprint
 
 
 # Estado do ultimo backfill periodico (consultado pelo painel se preciso).
@@ -32,6 +33,7 @@ ULTIMA_AUDITORIA = {'inicio': None, 'fim': None, 'resumos': 0, 'erro': None}
 
 app = Flask(__name__)
 app.register_blueprint(dashboard_blueprint)
+app.register_blueprint(api_blueprint)
 
 
 def _ensure_session_on_boot():
@@ -123,8 +125,13 @@ def _audit_loop():
         time.sleep(proximo_h * 3600)
 
 
-# Threads de boot. Guarda com WERKZEUG_RUN_MAIN pra nao duplicar com o reloader do Flask.
-if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+# Threads de boot.
+# - Em modo dev com `--debug`/reloader, so iniciamos no processo filho (WERKZEUG_RUN_MAIN=true)
+#   pra nao duplicar as threads quando o reloader recarrega.
+# - Em modo prod (sem reloader), nao existe WERKZEUG_RUN_MAIN, entao iniciamos sempre.
+_DEBUG = os.environ.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes')
+_BG_OK = (not _DEBUG) or os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
+if _BG_OK:
     threading.Thread(target=_ensure_session_on_boot, daemon=True).start()
     threading.Thread(target=_session_healer_loop, daemon=True).start()
     threading.Thread(target=_hourly_import_loop, daemon=True).start()

@@ -4,4 +4,14 @@ chroma.sqlite3
 
 .venv
 
+# Python bytecode (jamais versionar)
+__pycache__/
+*.pyc
 
+# Frontend deps e build
+frontend/node_modules/
+frontend/dist/
+frontend/.output/
+frontend/.nitro/
+frontend/.tanstack/
+frontend/.vite/

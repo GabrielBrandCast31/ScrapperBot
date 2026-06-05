@@ -89,6 +89,18 @@ class Waha:
         except Exception as exc:
             print(f'[WAHA logout_session] erro: {exc}', flush=True)
 
+    def reconnect_session(self):
+        """Forca um novo pareamento: logout (apaga credenciais antigas) + start.
+
+        Caso de uso: celular desvinculou o aparelho do WhatsApp, sessao virou
+        FAILED ou ficou WORKING-fantasma. Esse fluxo limpa o estado e dispara
+        um QR novo.
+        """
+        import time as _t
+        self.logout_session()
+        _t.sleep(2)
+        self.start_session()
+
     def start_session(self):
         try:
             url = f'{self.__api_url}/api/sessions/default/start'

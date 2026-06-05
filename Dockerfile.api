@@ -1,17 +1,27 @@
+# Backend Flask + servicos (WAHA proxy, OpenAI, importadores, auditoria IA).
+# Imagem unica para prod e dev — comportamento muda via FLASK_DEBUG no compose.
+
 FROM python:3.11-slim
 
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    FLASK_APP=main.py
 
 WORKDIR /app
 
+# 1) Deps Python em layer separada (cache de build)
 COPY requirements.txt requirements.txt
-RUN python -m pip install --upgrade pip
-RUN pip install  -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
+# 2) Codigo do backend. O .dockerignore garante que frontend/, waha_data/,
+#    data/messages.db, __pycache__/ ficam de fora.
 COPY . .
-
-ENV FLASK_APP=main.py
 
 EXPOSE 5000
 
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5000", "--debug"]
+# Em prod: flask run SEM --debug (sem reloader). As threads de background
+# em main.py se iniciam sem WERKZEUG_RUN_MAIN porque FLASK_DEBUG nao esta set.
+# Em dev: docker-compose.dev.yml seta FLASK_DEBUG=true e sobrescreve o CMD
+# pra incluir --debug.
+CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]

@@ -1,1 +1,35 @@
-.venv
+# Contexto de build do BACKEND. Tudo aqui e ignorado pelo `docker build`
+# quando o context e a raiz do projeto.
+
+# Frontend nao vai pro container do backend
+frontend/
+
+# Estado runtime persiste em volume named, nao na imagem
+waha_data/
+data/messages.db
+data/chat_exports/
+chroma_data/
+chroma.sqlite3
+
+# Bytecode Python
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Ambiente
+.venv/
+.env
+.env.local
+
+# IDE / SO
+.git/
+.gitignore
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Docker (nao precisa entrar na imagem)
+docker-compose*.yml
+.dockerignore
