@@ -305,6 +305,14 @@ def conexao_logout():
     return jsonify({'ok': True})
 
 
+@dashboard.route('/painel/conexao/reconectar', methods=['POST'])
+def conexao_reconectar():
+    """Forca novo pareamento: logout + start. Util quando o celular
+    desvinculou o aparelho e a sessao ficou inutilizavel."""
+    threading.Thread(target=Waha().reconnect_session, daemon=True).start()
+    return jsonify({'ok': True})
+
+
 # --------- Auditoria IA horaria ----------
 
 @dashboard.route('/painel/auditoria')

@@ -1,14 +1,25 @@
+# Stack de PRODUCAO — desacoplada.
+#
+# 3 servicos:
+#   - waha     :  ponte WhatsApp <-> HTTP (so acessivel localhost da maquina host)
+#   - api      :  backend Flask + auditoria IA + servicos
+#   - frontend :  React (TanStack Start) servido por Node em modo SSR
+#
+# Volumes nomeados pra estado:
+#   - waha_data    :  sessao do WAHA (pareamento WhatsApp)
+#   - app_data     :  banco SQLite + .txt importados do backend
+#
+# Em prod NAO ha volume mount de codigo — a imagem ja contem tudo.
+# Pra dev (hot-reload), use:  docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
 services:
   waha:
     image: devlikeapro/waha:latest
     container_name: wpp_bot_waha
     platform: linux/amd64
     restart: always
-
     ports:
-      # WAHA dashboard so para o proprio servidor (use SSH tunnel pra
-      # acessar de fora). Porta de host 3030 pra nao colidir com outros
-      # serviços rodando no mesmo host (frontend em 8080, backend em 8000, etc.).
+      # Dashboard so do servidor (use SSH tunnel pra acessar de fora).
       - '127.0.0.1:3030:3000'
     environment:
       - WHATSAPP_API_KEY=minha-chave-secreta
@@ -16,25 +27,46 @@ services:
       - WAHA_DASHBOARD_PASSWORD=admin
       - WAHA_LOCAL_STORE_BASE_DIR=/app/data
       - WHATSAPP_FILES_FOLDER=/app/data/files
-      # OBS: o auto-start da sessao no boot e feito pelo container `api`
-      # (ver main.py / Waha.ensure_session_started), pois o WAHA Core nao
-      # reinicia sessoes salvas sozinho.
     volumes:
-      - ./waha_data:/app/data
+      - waha_data:/app/data
 
   api:
     build:
       context: .
       dockerfile: Dockerfile.api
+    image: wpp_bot_api:latest
     container_name: wpp_bot_api
     restart: always
     ports:
-      # Aberto na LAN: qualquer dispositivo na mesma rede acessa o painel
-      # SEM autenticacao. Use com consciencia (conversas de clientes ficam expostas).
-      # Porta de host 5050 pra nao colidir com outros serviços (5432 postgres, 5000 outros Flask).
+      # Backend exposto na LAN. Pra fechar pra fora, use 127.0.0.1:5050:5000.
       - '5050:5000'
+    environment:
+      # FLASK_DEBUG nao seta = modo prod (sem reloader, threads iniciam direto)
+      - FLASK_APP=main.py
     volumes:
-      - .:/app
-      - ./chroma_data:/app/chroma_data
-    
-  
+      # Estado persistente fora da imagem
+      - app_data:/app/data
+      - chroma_data:/app/chroma_data
+    depends_on:
+      - waha
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: wpp_bot_frontend:latest
+    container_name: wpp_bot_frontend
+    restart: always
+    ports:
+      # Frontend acessivel na LAN. URL principal pro usuario.
+      - '4173:3000'
+    environment:
+      # SSR e proxy /api -> backend. service `api` na rede do compose.
+      - VITE_API_TARGET=http://api:5000
+    depends_on:
+      - api
+
+volumes:
+  waha_data:
+  app_data:
+  chroma_data:

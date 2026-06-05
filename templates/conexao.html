@@ -61,7 +61,8 @@
   • <strong>SCAN_QR_CODE</strong> — precisa parear. Escaneie o QR acima.<br>
   • <strong>WORKING</strong> — conectado. Mensagens estão sendo capturadas em tempo real.<br>
   • <strong>FAILED</strong> — algo deu errado. Tente <em>Reiniciar</em>.<br>
-  <em>Desconectar</em> apaga o pareamento atual (precisará escanear QR de novo). Use só se quiser trocar de número.
+  <em>Desconectar</em> apaga o pareamento atual e fica parado. Use só se quiser trocar de número depois.<br>
+  <em>🔄 Reconectar</em> = atalho de 1 clique pro caso clássico em que o <strong>celular tirou o aparelho da lista de conectados</strong>: faz logout + start, gera QR novo, você escaneia e volta a capturar.
 </div>
 
 <script>
@@ -107,6 +108,12 @@
     if (status === 'WORKING' || status === 'STARTING' || status === 'SCAN_QR_CODE') {
       h += botao('⟳ Reiniciar', 'restart', 'btn-light');
       h += botao('⏸ Parar', 'stop', 'btn-outline-light');
+    }
+    // Reconectar = logout + start. Sempre disponivel (exceto enquanto subindo)
+    // pra cobrir o caso "celular desvinculou o aparelho" mesmo que o status
+    // ainda diga WORKING. Em FAILED/STOPPED tambem eh o atalho mais rapido.
+    if (status !== 'STARTING') {
+      h += botao('🔄 Reconectar (novo QR)', 'reconectar', 'btn-warning ms-2');
     }
     if (status === 'WORKING' || status === 'SCAN_QR_CODE') {
       h += botao('✕ Desconectar', 'logout', 'btn-outline-light ms-2');

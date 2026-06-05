@@ -1,0 +1,26 @@
+# Contexto de build do FRONTEND. Tudo aqui e ignorado pelo `docker build`.
+
+node_modules/
+.output/
+.nitro/
+.tanstack/
+.vite/
+dist/
+
+# IDE / SO
+.git/
+.gitignore
+.idea/
+.vscode/
+.DS_Store
+
+# Docker
+Dockerfile*
+.dockerignore
+
+# Lovable extras
+.lovable/
+
+# Logs
+*.log
+npm-debug.log*
