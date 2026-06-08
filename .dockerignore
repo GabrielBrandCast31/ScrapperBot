@@ -1,7 +1,8 @@
 # Contexto de build do BACKEND. Tudo aqui e ignorado pelo `docker build`
 # quando o context e a raiz do projeto.
 
-# Frontend nao vai pro container do backend
+# Frontend agora mora em ../frontend (fora do contexto deste build),
+# entao essa linha eh apenas defensiva caso volte pra dentro um dia.
 frontend/
 
 # Estado runtime persiste em volume named, nao na imagem

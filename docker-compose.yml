@@ -1,16 +1,28 @@
-# Stack de PRODUCAO — desacoplada.
+# BACKEND — stack de produçao.
 #
-# 3 servicos:
-#   - waha     :  ponte WhatsApp <-> HTTP (so acessivel localhost da maquina host)
-#   - api      :  backend Flask + auditoria IA + servicos
-#   - frontend :  React (TanStack Start) servido por Node em modo SSR
+# Servicos deste compose:
+#   - waha :  ponte WhatsApp <-> HTTP (so localhost do host)
+#   - api  :  backend Flask + auditoria IA + importadores
 #
-# Volumes nomeados pra estado:
-#   - waha_data    :  sessao do WAHA (pareamento WhatsApp)
-#   - app_data     :  banco SQLite + .txt importados do backend
+# O FRONTEND vive em projeto separado (../frontend) e sobe via seu proprio
+# docker-compose.yml. Ambos conversam pela network `wpp_net`, declarada
+# aqui e marcada como `external: true` no frontend.
 #
-# Em prod NAO ha volume mount de codigo — a imagem ja contem tudo.
-# Pra dev (hot-reload), use:  docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# Ordem ao subir tudo:
+#   1) backend:  cd AgenteWPPAutomation && docker compose up -d
+#   2) frontend: cd ../frontend && docker compose up -d
+#
+# Pra dev (hot-reload do backend):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+networks:
+  wpp_net:
+    name: wpp_net
+
+volumes:
+  waha_data:
+  app_data:
+  chroma_data:
 
 services:
   waha:
@@ -29,6 +41,8 @@ services:
       - WHATSAPP_FILES_FOLDER=/app/data/files
     volumes:
       - waha_data:/app/data
+    networks:
+      - wpp_net
 
   api:
     build:
@@ -43,30 +57,14 @@ services:
     environment:
       # FLASK_DEBUG nao seta = modo prod (sem reloader, threads iniciam direto)
       - FLASK_APP=main.py
+    env_file:
+      # OPENAI_API_KEY, GEMINI_API_KEY etc. O .env nao entra na imagem
+      # (por causa do .dockerignore); aqui o compose le e injeta como env vars.
+      - .env
     volumes:
-      # Estado persistente fora da imagem
       - app_data:/app/data
       - chroma_data:/app/chroma_data
     depends_on:
       - waha
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    image: wpp_bot_frontend:latest
-    container_name: wpp_bot_frontend
-    restart: always
-    ports:
-      # Frontend acessivel na LAN. URL principal pro usuario.
-      - '4173:3000'
-    environment:
-      # SSR e proxy /api -> backend. service `api` na rede do compose.
-      - VITE_API_TARGET=http://api:5000
-    depends_on:
-      - api
-
-volumes:
-  waha_data:
-  app_data:
-  chroma_data:
+    networks:
+      - wpp_net
