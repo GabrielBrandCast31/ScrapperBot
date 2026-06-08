@@ -1,13 +1,14 @@
-# Override de DESENVOLVIMENTO. Aplica em cima de docker-compose.yml.
+# Override de DESENVOLVIMENTO do BACKEND. Aplica em cima de docker-compose.yml.
 #
 # Uso:
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 #
 # Diferencas pra prod:
-#   - api      : volume mount do codigo + FLASK_DEBUG=true (reload em mudanca)
-#   - frontend : usa Dockerfile.dev (Vite dev server com HMR) e volume mount
-#   - data/    : monta a pasta local em vez de volume nomeado (mais facil
-#                pra inspecionar o banco/exports no editor)
+#   - api  : volume mount do codigo + FLASK_DEBUG=true (reload em mudanca)
+#   - waha : monta ./waha_data/ no host (em vez de volume named) pra debug
+#
+# Frontend NAO eh gerenciado por este compose (vive em projeto separado).
+# Pra rodar o frontend em dev:  cd ../frontend && docker compose -f ... up
 
 services:
   api:
@@ -21,17 +22,6 @@ services:
       - ./data:/app/data
       - ./chroma_data:/app/chroma_data
     command: ["flask", "run", "--host=0.0.0.0", "--port=5000", "--debug"]
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
-    volumes:
-      # Hot reload do codigo + node_modules vindo da imagem
-      - ./frontend:/app
-      - /app/node_modules
-    environment:
-      - VITE_API_TARGET=http://api:5000
 
   waha:
     volumes:
