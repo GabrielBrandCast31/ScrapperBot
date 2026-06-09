@@ -1,0 +1,12 @@
+# Frontend em modo dev (Vite + HMR). Pra prod usa Dockerfile (multi-stage).
+FROM oven/bun:1.1
+
+WORKDIR /app
+
+COPY package.json bun.lock bunfig.toml ./
+RUN bun install
+
+COPY . .
+
+EXPOSE 3000
+CMD ["bun", "run", "dev"]

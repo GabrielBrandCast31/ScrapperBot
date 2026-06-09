@@ -1,13 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import {
   Smartphone,
   CheckCircle2,
   RefreshCcw,
   Power,
   Wifi,
+  Play,
+  Pause,
+  RotateCw,
   AlertTriangle,
-  Loader2,
+  QrCode,
 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,62 +19,71 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { apiGet, apiPost, apiAssetUrl } from "@/lib/api/client";
 
+interface ConexaoStatus {
+  status: string;
+  me?: { id?: string; pushName?: string } | null;
+  engine?: { engine?: string; WWebVersion?: string; state?: string } | null;
+}
+
+const statusColor: Record<string, string> = {
+  WORKING: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
+  STARTING: "bg-blue-500/20 text-blue-400 border-blue-500/40",
+  SCAN_QR_CODE: "bg-yellow-500/20 text-yellow-400 border-yellow-500/40",
+  FAILED: "bg-destructive/20 text-destructive border-destructive/40",
+  STOPPED: "bg-muted text-muted-foreground border-border",
+};
+
+const statusLabel: Record<string, string> = {
+  WORKING: "Conectado",
+  STARTING: "Iniciando",
+  SCAN_QR_CODE: "Escaneie o QR",
+  FAILED: "Falhou",
+  STOPPED: "Parado",
+};
+
 export const Route = createFileRoute("/conexao")({
   head: () => ({
     meta: [
-      { title: "Conexão · ScrapperBot" },
-      { name: "description", content: "Status da conexão com o WhatsApp e gestão de sessão." },
+      { title: "Conexão · BrandCast" },
+      { name: "description", content: "Status da sessão WhatsApp do monitor." },
     ],
   }),
   component: ConexaoPage,
 });
 
-type SessionInfo = {
-  status: string | null;
-  me: { id?: string; pushName?: string } | null;
-  engine: { engine?: string; WWebVersion?: string; state?: string | null } | null;
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  WORKING: "Conectado",
-  STARTING: "Iniciando…",
-  SCAN_QR_CODE: "Aguardando pareamento",
-  STOPPED: "Parado",
-  FAILED: "Falhou",
-};
-
-function statusColor(status: string | null | undefined) {
-  switch (status) {
-    case "WORKING":
-      return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
-    case "STARTING":
-      return "bg-blue-500/15 text-blue-400 border-blue-500/30";
-    case "SCAN_QR_CODE":
-      return "bg-amber-500/15 text-amber-400 border-amber-500/30";
-    case "FAILED":
-      return "bg-red-500/15 text-red-400 border-red-500/30";
-    default:
-      return "bg-muted text-muted-foreground border-border";
-  }
-}
-
 function ConexaoPage() {
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery<SessionInfo>({
-    queryKey: ["conexao", "status"],
-    queryFn: () => apiGet<SessionInfo>("/conexao/status"),
-    refetchInterval: 3000,
+  const { data, isLoading } = useQuery({
+    queryKey: ["conexao"],
+    queryFn: () => apiGet<ConexaoStatus>("/conexao/status"),
+    refetchInterval: 3_000,
   });
 
-  const invalidar = () => qc.invalidateQueries({ queryKey: ["conexao"] });
-  const iniciar = useMutation({ mutationFn: () => apiPost<unknown>("/conexao/start"), onSuccess: invalidar });
-  const parar = useMutation({ mutationFn: () => apiPost<unknown>("/conexao/stop"), onSuccess: invalidar });
-  const reiniciar = useMutation({ mutationFn: () => apiPost<unknown>("/conexao/restart"), onSuccess: invalidar });
-  const desconectar = useMutation({ mutationFn: () => apiPost<unknown>("/conexao/logout"), onSuccess: invalidar });
-  const reconectar = useMutation({ mutationFn: () => apiPost<unknown>("/conexao/reconectar"), onSuccess: invalidar });
+  const [qrTick, setQrTick] = useState(0);
+  useEffect(() => {
+    if (data?.status !== "SCAN_QR_CODE") return;
+    const t = setInterval(() => setQrTick((n) => n + 1), 3_000);
+    return () => clearInterval(t);
+  }, [data?.status]);
 
-  const status = data?.status ?? null;
-  const cor = statusColor(status);
+  const onSuccess = () => qc.invalidateQueries({ queryKey: ["conexao"] });
+  const start = useMutation({ mutationFn: () => apiPost<unknown>("/conexao/start"), onSuccess });
+  const stop = useMutation({ mutationFn: () => apiPost<unknown>("/conexao/stop"), onSuccess });
+  const restart = useMutation({ mutationFn: () => apiPost<unknown>("/conexao/restart"), onSuccess });
+  const logout = useMutation({ mutationFn: () => apiPost<unknown>("/conexao/logout"), onSuccess });
+  const reconectar = useMutation({ mutationFn: () => apiPost<unknown>("/conexao/reconectar"), onSuccess });
+
+  const status = data?.status ?? "STOPPED";
+  const numero = data?.me?.id ? data.me.id.replace(/@c\.us$/, "") : "—";
+  const pushName = data?.me?.pushName ?? "";
+  const engineName = data?.engine?.engine ?? "—";
+  const wwebVersion = data?.engine?.WWebVersion ?? "";
+
+  const canStart = ["STOPPED", "FAILED"].includes(status);
+  const canRestart = ["WORKING", "STARTING", "SCAN_QR_CODE"].includes(status);
+  const canStop = ["WORKING", "STARTING", "SCAN_QR_CODE"].includes(status);
+  const canLogout = ["WORKING", "SCAN_QR_CODE"].includes(status);
+  const canReconnect = status !== "STARTING";
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
@@ -78,22 +91,21 @@ function ConexaoPage() {
         <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Infraestrutura</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Conexão</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Status da sessão do WhatsApp utilizada pelo monitor de atendimento.
+          Status da sessão do WhatsApp usada pelo monitor — atualiza a cada 3s.
         </p>
       </div>
 
-      {/* KPI cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="p-5 flex items-center gap-3">
-            <div className={`grid h-10 w-10 place-items-center rounded-lg border ${cor}`}>
-              {status === "WORKING" ? <CheckCircle2 className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
+            <div className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-500/15 text-emerald-400">
+              <CheckCircle2 className="h-5 w-5" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-xs text-muted-foreground">Status</p>
-              <p className="font-semibold">
-                {isLoading ? "Verificando…" : (STATUS_LABEL[status ?? ""] || status || "Desconhecido")}
-              </p>
+              <Badge className={`mt-1 ${statusColor[status] ?? statusColor.STOPPED}`}>
+                {statusLabel[status] ?? status}
+              </Badge>
             </div>
           </CardContent>
         </Card>
@@ -102,14 +114,10 @@ function ConexaoPage() {
             <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary/15 text-primary">
               <Smartphone className="h-5 w-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-muted-foreground">Número</p>
-              <p className="font-semibold">
-                {data?.me?.id ? data.me.id.replace("@c.us", "") : "—"}
-              </p>
-              {data?.me?.pushName && (
-                <p className="text-xs text-muted-foreground">{data.me.pushName}</p>
-              )}
+              <p className="font-semibold truncate">{numero}</p>
+              {pushName && <p className="text-xs text-muted-foreground truncate">{pushName}</p>}
             </div>
           </CardContent>
         </Card>
@@ -118,12 +126,10 @@ function ConexaoPage() {
             <div className="grid h-10 w-10 place-items-center rounded-lg bg-blue-500/15 text-blue-400">
               <Wifi className="h-5 w-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-muted-foreground">Motor</p>
-              <p className="font-semibold">{data?.engine?.engine ?? "—"}</p>
-              {data?.engine?.WWebVersion && (
-                <p className="text-xs text-muted-foreground">WA Web {data.engine.WWebVersion}</p>
-              )}
+              <p className="font-semibold truncate">{engineName}</p>
+              {wwebVersion && <p className="text-xs text-muted-foreground truncate">v{wwebVersion}</p>}
             </div>
           </CardContent>
         </Card>
@@ -131,86 +137,101 @@ function ConexaoPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <CardTitle>Sessão WhatsApp</CardTitle>
-              <CardDescription>
-                {status === "WORKING" && "Sessão ativa e capturando mensagens em tempo real."}
-                {status === "STARTING" && "Inicializando o motor — aguarde alguns segundos."}
-                {status === "SCAN_QR_CODE" && "Aponte a câmera do WhatsApp para o QR abaixo."}
-                {status === "STOPPED" && "Sessão parada. Clique em Iniciar para começar."}
-                {status === "FAILED" && "A sessão falhou. Use Reconectar para gerar um novo QR."}
-                {!status && "Verificando estado da sessão…"}
-              </CardDescription>
-            </div>
-            {status && (
-              <Badge variant="outline" className={cor}>
-                {status}
-              </Badge>
-            )}
-          </div>
+          <CardTitle>Sessão WhatsApp</CardTitle>
+          <CardDescription>
+            {status === "SCAN_QR_CODE"
+              ? "Abra o WhatsApp no celular, vá em Dispositivos conectados e escaneie o código abaixo."
+              : status === "WORKING"
+                ? "Sessão ativa. Mensagens estão sendo capturadas em tempo real."
+                : "Use os botões abaixo pra iniciar, reconectar ou parar a sessão."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-6 items-center">
-            {status === "SCAN_QR_CODE" ? (
-              <img
-                key={`qr-${Math.floor(Date.now() / 3000)}`}
-                src={apiAssetUrl("/conexao/qr")}
-                alt="QR Code"
-                className="h-56 w-56 rounded-lg border bg-white p-2"
-              />
-            ) : (
-              <div className="grid h-56 w-56 place-items-center rounded-lg border border-dashed border-border bg-muted/40 text-muted-foreground text-sm text-center p-4">
-                {status === "WORKING" ? (
-                  <span>✅ Pareado<br />Nenhuma ação necessária</span>
-                ) : (
-                  <span>QR Code aparecerá aqui<br />quando a sessão precisar parear</span>
-                )}
-              </div>
-            )}
-            <div className="flex-1 space-y-4 text-sm">
-              <p className="text-muted-foreground">
-                A captura roda em segundo plano. <strong>Reconectar</strong> é o atalho quando o celular desvincula o aparelho — faz logout + start em 1 clique e gera um novo QR.
-              </p>
+          <div className="flex flex-col md:flex-row gap-6 items-start">
+            <div className="grid h-56 w-56 place-items-center rounded-lg border border-dashed border-border bg-muted/40 text-muted-foreground text-sm text-center p-4 overflow-hidden">
+              {status === "SCAN_QR_CODE" ? (
+                <img
+                  key={qrTick}
+                  src={`${apiAssetUrl("/conexao/qr")}?t=${qrTick}`}
+                  alt="QR Code WhatsApp"
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <QrCode className="h-10 w-10 opacity-50" />
+                  <p>QR Code aparece aqui<br />quando a sessão precisa ser pareada.</p>
+                </div>
+              )}
+            </div>
+            <div className="flex-1 space-y-3 text-sm">
+              {isLoading && <p className="text-muted-foreground">Consultando status…</p>}
+              {data?.engine?.state && (
+                <p className="text-muted-foreground">
+                  Estado do motor: <span className="font-medium text-foreground">{data.engine.state}</span>
+                </p>
+              )}
               <div className="flex flex-wrap gap-2">
-                {(status === "STOPPED" || status === "FAILED" || !status) && (
-                  <Button onClick={() => iniciar.mutate()} disabled={iniciar.isPending} className="gap-2">
-                    {iniciar.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                    ▶ Iniciar
+                {canStart && (
+                  <Button
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => start.mutate()}
+                    disabled={start.isPending}
+                  >
+                    <Play className="h-4 w-4" /> Iniciar
                   </Button>
                 )}
-                {status !== "STARTING" && (
+                {canReconnect && (
                   <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
                     onClick={() => reconectar.mutate()}
                     disabled={reconectar.isPending}
-                    variant="secondary"
-                    className="gap-2"
                   >
-                    {reconectar.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                    Reconectar
+                    <RefreshCcw className="h-4 w-4" /> Reconectar
                   </Button>
                 )}
-                {(status === "WORKING" || status === "STARTING" || status === "SCAN_QR_CODE") && (
-                  <Button onClick={() => reiniciar.mutate()} disabled={reiniciar.isPending} variant="outline" className="gap-2">
-                    <RefreshCcw className="h-4 w-4" />
-                    Reiniciar
+                {canRestart && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => restart.mutate()}
+                    disabled={restart.isPending}
+                  >
+                    <RotateCw className="h-4 w-4" /> Reiniciar
                   </Button>
                 )}
-                {(status === "WORKING" || status === "STARTING" || status === "SCAN_QR_CODE") && (
-                  <Button onClick={() => parar.mutate()} disabled={parar.isPending} variant="outline" className="gap-2">
-                    ⏸ Parar
+                {canStop && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => stop.mutate()}
+                    disabled={stop.isPending}
+                  >
+                    <Pause className="h-4 w-4" /> Parar
                   </Button>
                 )}
-                {(status === "WORKING" || status === "SCAN_QR_CODE") && (
-                  <Button onClick={() => desconectar.mutate()} disabled={desconectar.isPending} variant="destructive" className="gap-2">
-                    <Power className="h-4 w-4" />
-                    Desconectar
+                {canLogout && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="gap-2"
+                    onClick={() => logout.mutate()}
+                    disabled={logout.isPending}
+                  >
+                    <Power className="h-4 w-4" /> Desconectar
                   </Button>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Atualizado em tempo real (polling a cada 3s).
-              </p>
+              {(start.isError || stop.isError || restart.isError || logout.isError || reconectar.isError) && (
+                <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                  <span>Falha na ação. Tente novamente em alguns segundos.</span>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>

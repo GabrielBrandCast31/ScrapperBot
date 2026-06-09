@@ -7,38 +7,37 @@ import { Button } from "@/components/ui/button";
 import { KpiCard } from "@/components/kpi-card";
 import { apiGet } from "@/lib/api/client";
 
+interface TopConversa {
+  chat_id: string;
+  chat_name: string;
+  total: number;
+  last_ts: number;
+  ultima: string;
+  last_ts_fmt: string;
+}
+
+interface InsightsData {
+  mensagens_total: number;
+  mensagens_24h: number;
+  clientes_total: number;
+  top_conversas: TopConversa[];
+}
+
 export const Route = createFileRoute("/insights")({
   head: () => ({
     meta: [
-      { title: "Insights · ScrapperBot" },
-      { name: "description", content: "Panorama das conversas armazenadas." },
+      { title: "Insights · BrandCast" },
+      { name: "description", content: "Panorama das conversas monitoradas." },
     ],
   }),
   component: InsightsPage,
 });
 
-type TopConversa = {
-  chat_id: string;
-  chat_name: string | null;
-  total: number;
-  last_ts: number | null;
-  ultima: string | null;
-  last_ts_fmt: string | null;
-};
-
-type InsightsData = {
-  mensagens_total: number;
-  mensagens_24h: number;
-  clientes_total: number;
-  top_conversas: TopConversa[];
-  periodo: { ativo: boolean; inicio: string | null; fim: string | null };
-};
-
 function InsightsPage() {
-  const { data, isLoading } = useQuery<InsightsData>({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["insights"],
     queryFn: () => apiGet<InsightsData>("/insights"),
-    refetchInterval: 60000,
+    refetchInterval: 60_000,
   });
 
   return (
@@ -52,21 +51,28 @@ function InsightsPage() {
         <span className="text-xs text-muted-foreground">Atualiza a cada 60s</span>
       </div>
 
+      {isError && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          Falha ao carregar insights: {(error as Error)?.message}
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <KpiCard
           label="Mensagens armazenadas"
-          value={isLoading ? "…" : (data?.mensagens_total ?? 0).toLocaleString("pt-BR")}
+          value={isLoading ? "—" : (data?.mensagens_total ?? 0).toLocaleString("pt-BR")}
           icon={MessageSquare}
+          accent="primary"
         />
         <KpiCard
           label="Mensagens últimas 24h"
-          value={isLoading ? "…" : (data?.mensagens_24h ?? 0).toLocaleString("pt-BR")}
+          value={isLoading ? "—" : (data?.mensagens_24h ?? 0).toLocaleString("pt-BR")}
           icon={Clock}
           accent="info"
         />
         <KpiCard
           label="Clientes monitorados"
-          value={isLoading ? "…" : (data?.clientes_total ?? 0).toString()}
+          value={isLoading ? "—" : (data?.clientes_total ?? 0).toLocaleString("pt-BR")}
           icon={Users}
           accent="warning"
         />
@@ -75,33 +81,29 @@ function InsightsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Conversas mais ativas</CardTitle>
-          <CardDescription>Top 10 últimas a receber mensagem</CardDescription>
+          <CardDescription>Top {data?.top_conversas?.length ?? 0} por volume de mensagens</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading && (
-            <div className="px-5 py-8 text-center text-sm text-muted-foreground">Carregando…</div>
-          )}
-          {!isLoading && (data?.top_conversas?.length ?? 0) === 0 && (
-            <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-              Sem conversas ainda.
-            </div>
-          )}
+          <div className="hidden md:grid grid-cols-[1fr_120px_120px_220px] gap-4 border-b border-border/60 px-5 py-3 text-[11px] uppercase tracking-wider text-muted-foreground">
+            <div>Conversa</div>
+            <div className="text-right">Mensagens</div>
+            <div className="text-right">Última</div>
+            <div className="text-right">Ações</div>
+          </div>
           <div className="divide-y divide-border/60">
             {(data?.top_conversas ?? []).map((c) => (
               <div
                 key={c.chat_id}
-                className="grid grid-cols-[1fr_120px_120px_220px] gap-4 items-center px-5 py-3"
+                className="grid grid-cols-1 md:grid-cols-[1fr_120px_120px_220px] gap-4 items-center px-5 py-3"
               >
-                <div>
-                  <p className="text-sm font-medium">{c.chat_name || c.chat_id}</p>
-                  {c.last_ts_fmt && (
-                    <p className="text-xs text-muted-foreground">Última msg em {c.last_ts_fmt}</p>
-                  )}
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{c.chat_name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{c.ultima}</p>
                 </div>
                 <p className="text-right text-sm font-semibold tabular-nums">
                   {c.total.toLocaleString("pt-BR")}
                 </p>
-                <p className="text-right text-xs text-muted-foreground">{c.ultima || "—"}</p>
+                <p className="text-right text-xs text-muted-foreground">{c.last_ts_fmt}</p>
                 <div className="flex justify-end gap-1">
                   <Button asChild variant="ghost" size="sm" className="gap-1">
                     <Link to="/conversas/$id" params={{ id: c.chat_id }}>
@@ -116,6 +118,11 @@ function InsightsPage() {
                 </div>
               </div>
             ))}
+            {!isLoading && (data?.top_conversas?.length ?? 0) === 0 && (
+              <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+                Nenhuma conversa monitorada ainda.
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

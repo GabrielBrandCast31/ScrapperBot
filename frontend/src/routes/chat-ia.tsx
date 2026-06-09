@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles, Send, Bot, User, Target, X, Loader2 } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,18 +10,20 @@ import { apiGet, apiPost } from "@/lib/api/client";
 
 type ChatSearch = { chatId?: string };
 
-export const Route = createFileRoute("/chat-ia")({
-  head: () => ({
-    meta: [
-      { title: "Chat IA · ScrapperBot" },
-      { name: "description", content: "Pergunte qualquer coisa sobre suas conversas auditadas." },
-    ],
-  }),
-  validateSearch: (s: Record<string, unknown>): ChatSearch => ({
-    chatId: typeof s.chatId === "string" ? s.chatId : undefined,
-  }),
-  component: ChatIaPage,
-});
+interface ConversaDetalhe {
+  chat_id: string;
+  chat_name: string;
+  total: number;
+}
+
+interface PerguntarReq {
+  historia: { role: "user" | "assistant"; content: string }[];
+  chat_id?: string;
+}
+
+interface PerguntarRes {
+  resposta: string;
+}
 
 interface Msg {
   role: "user" | "assistant";
@@ -29,93 +31,120 @@ interface Msg {
 }
 
 const globalSuggestions = [
-  "Liste os clientes monitorados",
-  "Panorama geral do banco",
-  "Buscar mensagens com 'atrasado'",
-  "Quais conversas tiveram mais atividade hoje?",
+  "Qual o panorama geral das conversas monitoradas?",
+  "Quais clientes deram retorno nas últimas 24h?",
+  "Tem alguma demanda pendente sem resposta?",
+  "Resuma o que está acontecendo nesta semana",
 ];
 
 const focusedSuggestions = [
   "Resume essa conversa",
-  "Qual o tom do cliente nas últimas semanas?",
-  "O que ficou prometido e ainda não foi entregue?",
-  "Pontos de atenção que eu deveria saber",
+  "Quais foram as últimas demandas trazidas pelo cliente?",
+  "Tem algo pendente que ainda não foi respondido?",
+  "Qual o tom dessa conversa nas últimas mensagens?",
 ];
 
-type ConversaInfo = { chat_id: string; chat_name: string; total: number };
+export const Route = createFileRoute("/chat-ia")({
+  head: () => ({
+    meta: [
+      { title: "Chat IA · BrandCast" },
+      { name: "description", content: "Pergunte qualquer coisa sobre as conversas monitoradas." },
+    ],
+  }),
+  validateSearch: (s: Record<string, unknown>): ChatSearch => ({
+    chatId: typeof s.chatId === "string" && s.chatId.length > 0 ? s.chatId : undefined,
+  }),
+  component: ChatIaPage,
+});
 
 function ChatIaPage() {
   const { chatId } = Route.useSearch();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Quando ha chat_id, busca o nome via API pra mostrar no banner
-  const { data: conversaInfo } = useQuery<ConversaInfo | null>({
-    queryKey: ["chat-ia-info", chatId],
-    queryFn: async () => {
-      if (!chatId) return null;
-      const d = await apiGet<{ chat_id: string; chat_name: string; total: number }>(
-        `/conversas/${encodeURIComponent(chatId)}?limit=1`,
-      );
-      return { chat_id: d.chat_id, chat_name: d.chat_name, total: d.total };
-    },
+  const focused = useQuery({
+    queryKey: ["conversa-meta", chatId],
+    queryFn: () => apiGet<ConversaDetalhe>(`/conversas/${encodeURIComponent(chatId!)}?limit=1`),
     enabled: !!chatId,
+    staleTime: 60_000,
   });
 
-  const seedContent = useMemo(() => {
-    if (chatId) {
-      const nome = conversaInfo?.chat_name ?? "essa conversa";
-      return `Tô com a conversa de **${nome}** em contexto. A IA já recebeu o transcript completo. Pergunte direto — posso resumir, identificar pontos em aberto, tom geral, ou qualquer trecho específico.`;
+  const focusedName = focused.data?.chat_name;
+
+  const seed = useMemo<Msg[]>(() => {
+    if (chatId && focusedName) {
+      return [
+        {
+          role: "assistant",
+          content: `Estou com a conversa de **${focusedName}** em contexto. Pergunte direto — posso resumir, listar demandas pendentes, analisar tom ou trechos específicos.`,
+        },
+      ];
     }
-    return "Olá! Pergunte qualquer coisa sobre as conversas armazenadas. Posso buscar mensagens, listar clientes, dar panorama geral, etc.";
-  }, [chatId, conversaInfo?.chat_name]);
+    if (chatId) {
+      return [{ role: "assistant", content: "Carregando contexto da conversa…" }];
+    }
+    return [
+      {
+        role: "assistant",
+        content:
+          "Olá! Eu acompanho todas as conversas que o monitor capturou. Pergunte qualquer coisa — demandas pendentes, panorama por cliente, padrões. Pra focar em uma conversa específica, abra ela e clique em 'Analisar com IA'.",
+      },
+    ];
+  }, [chatId, focusedName]);
 
-  const [messages, setMessages] = useState<Msg[]>([{ role: "assistant", content: seedContent }]);
+  const [messages, setMessages] = useState<Msg[]>(seed);
   const [input, setInput] = useState("");
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Atualiza a seed quando muda o chatId/nome
+  // re-seed apenas quando o contexto (chatId) muda — preserva histórico
+  const lastChatRef = useRef<string | undefined>(chatId);
   useEffect(() => {
-    setMessages([{ role: "assistant", content: seedContent }]);
-  }, [seedContent]);
+    if (lastChatRef.current !== chatId) {
+      lastChatRef.current = chatId;
+      setMessages(seed);
+    } else if (messages.length === 1 && messages[0].content.startsWith("Carregando")) {
+      // atualiza a seed inicial assim que o nome resolve
+      setMessages(seed);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId, focusedName]);
 
-  // Auto-scroll quando chegam novas mensagens
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  const perguntar = useMutation({
-    mutationFn: async (texto: string) => {
-      const novaHistoria = [
-        ...messages.filter((m) => m.role === "user" || m.role === "assistant").slice(1), // drop seed
-        { role: "user" as const, content: texto },
-      ];
-      return apiPost<{ resposta: string }>("/chat-ia/perguntar", {
-        historia: novaHistoria,
-        chat_id: chatId || "",
-      });
+  const mutation = useMutation({
+    mutationFn: async (history: Msg[]) => {
+      const body: PerguntarReq = {
+        historia: history.map((m) => ({ role: m.role, content: m.content })),
+        chat_id: chatId,
+      };
+      return apiPost<PerguntarRes>("/chat-ia/perguntar", body);
     },
-    onSuccess: (d, texto) => {
+    onSuccess: (res) => {
+      setMessages((m) => [...m, { role: "assistant", content: res.resposta }]);
+    },
+    onError: (err) => {
       setMessages((m) => [
         ...m,
-        { role: "user", content: texto },
-        { role: "assistant", content: d.resposta },
-      ]);
-    },
-    onError: (e: Error, texto) => {
-      setMessages((m) => [
-        ...m,
-        { role: "user", content: texto },
-        { role: "assistant", content: `❌ Erro: ${e.message}` },
+        {
+          role: "assistant",
+          content: `⚠️ Falha ao consultar a IA: ${(err as Error).message}`,
+        },
       ]);
     },
   });
 
   const send = (text: string) => {
-    if (!text.trim() || perguntar.isPending) return;
+    const t = text.trim();
+    if (!t || mutation.isPending) return;
+    const next: Msg[] = [...messages, { role: "user", content: t }];
+    setMessages(next);
     setInput("");
-    perguntar.mutate(text);
+    // envia apenas mensagens reais user/assistant (sem seed do tipo 'carregando')
+    mutation.mutate(next.filter((m) => m.role === "user" || m.role === "assistant"));
   };
 
   const suggestions = chatId ? focusedSuggestions : globalSuggestions;
+  const showSuggestions = messages.length <= 1 && !mutation.isPending;
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
@@ -129,7 +158,7 @@ function ChatIaPage() {
             <p className="text-xs text-muted-foreground">
               {chatId
                 ? "Conversa específica em contexto — pergunte qualquer coisa sobre ela"
-                : "Pergunte sobre as conversas armazenadas"}
+                : "Pergunte sobre o panorama das conversas monitoradas"}
             </p>
           </div>
         </div>
@@ -143,11 +172,11 @@ function ChatIaPage() {
               <div>
                 <p>
                   <span className="text-muted-foreground">Analisando:</span>{" "}
-                  <strong>{conversaInfo?.chat_name || chatId}</strong>
+                  <strong>{focusedName ?? chatId}</strong>
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {conversaInfo
-                    ? `A IA recebe o transcript dessa conversa (até 1500 msgs) como contexto.`
+                  {focused.data
+                    ? `${focused.data.total.toLocaleString("pt-BR")} mensagens disponíveis pra IA.`
                     : "Carregando contexto…"}
                 </p>
               </div>
@@ -161,7 +190,7 @@ function ChatIaPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
         <div className="mx-auto max-w-3xl space-y-4">
           {messages.map((m, i) => (
             <div key={i} className={"flex gap-3 " + (m.role === "user" ? "flex-row-reverse" : "")}>
@@ -186,20 +215,20 @@ function ChatIaPage() {
             </div>
           ))}
 
-          {perguntar.isPending && (
+          {mutation.isPending && (
             <div className="flex gap-3">
               <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-primary/20 text-primary">
                 <Bot className="h-4 w-4" />
               </div>
               <Card className="max-w-[80%]">
-                <CardContent className="p-3 text-sm leading-relaxed flex items-center gap-2 text-muted-foreground">
+                <CardContent className="p-3 text-sm flex items-center gap-2 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" /> Pensando…
                 </CardContent>
               </Card>
             </div>
           )}
 
-          {messages.length === 1 && !perguntar.isPending && (
+          {showSuggestions && (
             <div className="mt-6 grid gap-2 sm:grid-cols-2">
               {suggestions.map((s) => (
                 <button
@@ -212,8 +241,6 @@ function ChatIaPage() {
               ))}
             </div>
           )}
-
-          <div ref={messagesEndRef} />
         </div>
       </div>
 
@@ -228,12 +255,17 @@ function ChatIaPage() {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Pergunte sobre suas conversas…"
-            disabled={perguntar.isPending}
+            placeholder={chatId ? "Pergunte sobre essa conversa…" : "Pergunte sobre suas conversas…"}
             className="border-0 bg-transparent focus-visible:ring-0"
+            disabled={mutation.isPending}
           />
-          <Button type="submit" size="icon" aria-label="Enviar" disabled={perguntar.isPending}>
-            {perguntar.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          <Button
+            type="submit"
+            size="icon"
+            aria-label="Enviar"
+            disabled={mutation.isPending || !input.trim()}
+          >
+            <Send className="h-4 w-4" />
           </Button>
         </form>
       </div>
