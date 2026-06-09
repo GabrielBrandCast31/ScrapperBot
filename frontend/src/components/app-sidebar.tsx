@@ -7,7 +7,6 @@ import {
   Sparkles,
   Bell,
   Smartphone,
-  ClipboardList,
   BarChart3,
   Globe,
 } from "lucide-react";

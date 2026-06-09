@@ -18,9 +18,8 @@ async function getServerEntry(): Promise<ServerEntry> {
   return serverEntryPromise;
 }
 
-// Proxy reverso de /api/* pro backend Flask. Em dev, o proxy do Vite
-// (vite.config.ts) ja atende antes — esse handler so dispara quando o
-// build prod do Nitro recebe direto (ou se chegar aqui em algum edge case).
+// Proxy reverso de /api/* pro backend Flask. Em dev, o proxy do Vite atende
+// antes. Em prod (Bun.serve), esse handler proxia direto.
 const API_TARGET = process.env.VITE_API_TARGET || "http://api:5000";
 
 async function proxyToBackend(request: Request): Promise<Response> {
@@ -49,18 +48,14 @@ async function proxyToBackend(request: Request): Promise<Response> {
   }
 }
 
-// h3 swallows in-handler throws into a normal 500 Response with body
-// {"unhandled":true,"message":"HTTPError"} — try/catch alone never fires for those.
 async function normalizeCatastrophicSsrResponse(response: Response): Promise<Response> {
   if (response.status < 500) return response;
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) return response;
-
   const body = await response.clone().text();
   if (!body.includes('"unhandled":true') || !body.includes('"message":"HTTPError"')) {
     return response;
   }
-
   console.error(consumeLastCapturedError() ?? new Error(`h3 swallowed SSR error: ${body}`));
   return new Response(renderErrorPage(), {
     status: 500,
@@ -70,12 +65,10 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
-    // Proxy /api/* -> backend Flask
     const url = new URL(request.url);
     if (url.pathname.startsWith("/api/")) {
       return proxyToBackend(request);
     }
-
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);

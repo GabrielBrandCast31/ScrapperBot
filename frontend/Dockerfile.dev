@@ -1,19 +1,8 @@
-# Frontend em modo dev (Vite + HMR). Pra prod a gente migra pra build estatico
-# ou Nitro+Node. Por enquanto, dev mode no container roda redondinho com
-# hot-reload e e suficiente pra LAN/VPS interno.
+# Frontend em modo dev (Vite + HMR).
 FROM oven/bun:1.1
-
 WORKDIR /app
-
-# Cacheia install de deps separado pra acelerar rebuilds.
-# Sem --frozen-lockfile porque o bun.lock pode ter sido gerado em outra
-# plataforma e ter pequenas diffs ao resolver platform-specific deps.
 COPY package.json bun.lock bunfig.toml ./
 RUN bun install
-
-# Codigo entra via volume no docker-compose, entao COPY aqui eh so fallback
 COPY . .
-
 EXPOSE 3000
-
 CMD ["bun", "run", "dev"]

@@ -6,14 +6,10 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-// API alvo do proxy /api/*. Em Docker usa o service `api` (mesma network do compose).
-// Fora de container: VITE_API_TARGET=http://localhost:5001 bun run dev
 const apiTarget = process.env.VITE_API_TARGET || "http://api:5000";
 
 export default defineConfig({
   tanstackStart: {
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    // nitro/vite builds from this
     server: { entry: "server" },
   },
   vite: {
@@ -21,7 +17,6 @@ export default defineConfig({
       host: "0.0.0.0",
       port: 3000,
       strictPort: true,
-      // HMR via polling — necessario quando ha volume mount no Docker
       watch: { usePolling: true, interval: 300 },
       proxy: {
         "/api": { target: apiTarget, changeOrigin: true },
