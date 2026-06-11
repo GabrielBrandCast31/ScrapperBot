@@ -59,11 +59,40 @@ function ConexaoPage() {
     refetchInterval: 3_000,
   });
 
-  const [qrTick, setQrTick] = useState(0);
+  // QR loading: fetch em blob (object URL) pra trocar APENAS quando a nova
+  // imagem terminou de baixar. Evita piscar do <img> com key/src cambiando.
+  // QR do WAHA expira em ~60s; 15s e seguro e nao floda requests.
+  const [qrSrc, setQrSrc] = useState<string | null>(null);
   useEffect(() => {
-    if (data?.status !== "SCAN_QR_CODE") return;
-    const t = setInterval(() => setQrTick((n) => n + 1), 3_000);
-    return () => clearInterval(t);
+    if (data?.status !== "SCAN_QR_CODE") {
+      setQrSrc((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return;
+    }
+    let active = true;
+    const load = async () => {
+      try {
+        const r = await fetch(`${apiAssetUrl("/conexao/qr")}?t=${Date.now()}`);
+        if (!r.ok || !active) return;
+        const blob = await r.blob();
+        if (!active) return;
+        const url = URL.createObjectURL(blob);
+        setQrSrc((prev) => {
+          if (prev) URL.revokeObjectURL(prev);
+          return url;
+        });
+      } catch {
+        /* keep previous QR shown */
+      }
+    };
+    load();
+    const t = setInterval(load, 15_000);
+    return () => {
+      active = false;
+      clearInterval(t);
+    };
   }, [data?.status]);
 
   const onSuccess = () => qc.invalidateQueries({ queryKey: ["conexao"] });
@@ -150,12 +179,18 @@ function ConexaoPage() {
           <div className="flex flex-col md:flex-row gap-6 items-start">
             <div className="grid h-56 w-56 place-items-center rounded-lg border border-dashed border-border bg-muted/40 text-muted-foreground text-sm text-center p-4 overflow-hidden">
               {status === "SCAN_QR_CODE" ? (
-                <img
-                  key={qrTick}
-                  src={`${apiAssetUrl("/conexao/qr")}?t=${qrTick}`}
-                  alt="QR Code WhatsApp"
-                  className="h-full w-full object-contain"
-                />
+                qrSrc ? (
+                  <img
+                    src={qrSrc}
+                    alt="QR Code WhatsApp"
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <QrCode className="h-10 w-10 opacity-50 animate-pulse" />
+                    <p>Carregando QR…</p>
+                  </div>
+                )
               ) : (
                 <div className="flex flex-col items-center gap-2">
                   <QrCode className="h-10 w-10 opacity-50" />
