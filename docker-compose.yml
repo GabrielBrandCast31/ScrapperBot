@@ -41,7 +41,10 @@ services:
     env_file:
       - .env
     volumes:
-      - app_data:/app/data
+      # Bind mount em vez de volume named: o banco SQLite (data/messages.db)
+      # e os .txt em data/chat_exports/ vivem no filesystem do projeto,
+      # versionados via git. Assim a VPS recebe os dados via `git pull`.
+      - ./data:/app/data
       - chroma_data:/app/chroma_data
     depends_on:
       - waha
@@ -63,5 +66,4 @@ services:
 
 volumes:
   waha_data:
-  app_data:
   chroma_data:
